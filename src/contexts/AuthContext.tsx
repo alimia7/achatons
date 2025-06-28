@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, fullName?: string) => Promise<any>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -87,6 +88,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return result;
   };
 
+  const getRedirectUrl = () => {
+    const isProduction = window.location.hostname !== 'localhost';
+    return isProduction 
+      ? 'https://www.achatons.com' 
+      : `${window.location.protocol}//${window.location.host}`;
+  };
+
   const signUp = async (email: string, password: string, fullName?: string) => {
     const result = await supabase.auth.signUp({
       email,
@@ -95,6 +103,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         data: {
           full_name: fullName,
         },
+        emailRedirectTo: getRedirectUrl(),
       },
     });
     return result;
@@ -102,6 +111,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+  };
+
+  const resetPassword = async (email: string) => {
+    const result = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getRedirectUrl(),
+    });
+    return result;
   };
 
   const value: AuthContextType = {
@@ -112,6 +128,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signIn,
     signUp,
     signOut,
+    resetPassword,
   };
 
   return (
