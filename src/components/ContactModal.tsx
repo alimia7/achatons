@@ -103,7 +103,7 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
   if (showConfirmation) {
     return (
       <Dialog open={isOpen} onOpenChange={handleCloseConfirmation}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-achatons-orange">
               🎉 Demande enregistrée !
@@ -221,7 +221,7 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Rejoindre l'achat groupé</DialogTitle>
           <DialogDescription>
