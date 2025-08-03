@@ -91,8 +91,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const getRedirectUrl = () => {
     const isProduction = window.location.hostname !== 'localhost';
     return isProduction 
-      ? 'https://www.achatons.com' 
-      : `${window.location.protocol}//${window.location.host}`;
+      ? 'https://achatons.com' 
+      : `${window.location.protocol}//${window.location.hostname}:5173`;
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {

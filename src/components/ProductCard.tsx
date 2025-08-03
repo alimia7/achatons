@@ -2,8 +2,10 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Clock, Users, TrendingDown, MapPin } from "lucide-react";
+import { Clock, Users, TrendingDown, MapPin, Eye } from "lucide-react";
 import ShareButton from "./ShareButton";
+import ProductDetailsModal from "./ProductDetailsModal";
+import { useState } from "react";
 
 interface Product {
   id: number;
@@ -27,6 +29,7 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const progressPercentage = (product.currentParticipants / product.targetParticipants) * 100;
   const daysLeft = Math.ceil((new Date(product.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   
@@ -42,24 +45,28 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
   };
 
   return (
-    <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 bg-white border-2 hover:border-achatons-orange">
-      <div className="relative">
-        <img 
-          src={product.image} 
-          alt={product.name}
-          className="w-full h-48 object-cover"
-        />
-        <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-sm font-semibold">
-          -{product.savings}%
-        </div>
-        <div className="absolute top-3 left-3">
-          <ShareButton
-            productName={product.name}
-            productPrice={formatPrice(product.groupPrice)}
-            productUrl="/products"
+    <>
+      <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 bg-white border-2 hover:border-achatons-orange cursor-pointer" onClick={() => setIsModalOpen(true)}>
+        <div className="relative">
+          <img 
+            src={product.image} 
+            alt={product.name}
+            className="w-full h-48 object-cover"
           />
+          <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-sm font-semibold">
+            -{product.savings}%
+          </div>
+          <div className="absolute top-3 left-3" onClick={(e) => e.stopPropagation()}>
+            <ShareButton
+              productName={product.name}
+              productPrice={formatPrice(product.groupPrice)}
+              productUrl="/products"
+            />
+          </div>
+          <div className="absolute bottom-3 right-3 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 transition-colors">
+            <Eye className="h-4 w-4" />
+          </div>
         </div>
-      </div>
 
       <CardContent className="p-4">
         <h3 className="font-bold text-lg text-achatons-brown mb-2 line-clamp-2">
@@ -124,7 +131,10 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
 
       <CardFooter className="p-4 pt-0">
         <Button 
-          onClick={onJoinGroup}
+          onClick={(e) => {
+            e.stopPropagation();
+            onJoinGroup();
+          }}
           className="w-full bg-achatons-orange hover:bg-achatons-brown text-white font-semibold py-3 transition-colors"
           disabled={daysLeft <= 0 || progressPercentage >= 100}
         >
@@ -133,7 +143,15 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
            'Rejoindre le groupe d\'achat'}
         </Button>
       </CardFooter>
-    </Card>
+      </Card>
+
+      <ProductDetailsModal
+        product={product}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onJoinGroup={onJoinGroup}
+      />
+    </>
   );
 };
 
