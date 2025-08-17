@@ -10,6 +10,8 @@ import ProductList from "./pages/ProductList";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import LegalPages from "./pages/LegalPages";
+import FAQ from "./pages/FAQ";
+import CGU from "./pages/CGU";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +29,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/legal" element={<LegalPages />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/cgu" element={<CGU />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

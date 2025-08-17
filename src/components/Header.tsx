@@ -47,6 +47,9 @@ const Header = () => {
             <a href="#impact" className="text-gray-700 hover:text-achatons-orange transition-colors">
               Notre impact
             </a>
+            <Link to="/faq" className="text-gray-700 hover:text-achatons-orange transition-colors">
+              FAQ
+            </Link>
           </nav>
 
           {/* Desktop Auth Section */}
@@ -132,6 +135,13 @@ const Header = () => {
               >
                 Notre impact
               </a>
+              <Link 
+                to="/faq" 
+                className="text-gray-700 hover:text-achatons-orange transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                FAQ
+              </Link>
               
               <div className="pt-4 border-t">
                 {user ? (

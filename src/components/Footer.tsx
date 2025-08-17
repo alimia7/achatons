@@ -43,10 +43,10 @@ const Footer = () => {
           <div>
             <h3 className="text-xl font-semibold mb-4 text-achatons-orange">Légal</h3>
             <ul className="space-y-2">
-              <li><Link to="/legal" className="text-achatons-cream hover:text-white transition-colors">Conditions d'utilisation</Link></li>
+              <li><Link to="/cgu" className="text-achatons-cream hover:text-white transition-colors">Conditions d'utilisation</Link></li>
               <li><Link to="/legal" className="text-achatons-cream hover:text-white transition-colors">Politique de confidentialité</Link></li>
               <li><Link to="/legal" className="text-achatons-cream hover:text-white transition-colors">Mentions légales</Link></li>
-              <li><Link to="/legal" className="text-achatons-cream hover:text-white transition-colors">FAQ</Link></li>
+              <li><Link to="/faq" className="text-achatons-cream hover:text-white transition-colors">FAQ</Link></li>
             </ul>
           </div>
 
