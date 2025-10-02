@@ -10,6 +10,8 @@ import LoadingState from "@/components/LoadingState";
 import ProposeProductSection from "@/components/ProposeProductSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { retrySupabaseRequest } from "@/lib/supabase-health";
 
 interface DatabaseProduct {
   id: string;
@@ -61,39 +63,64 @@ const ProductList = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { loading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-  }, []);
+    // Attendre que l'authentification soit prête avant de charger les données
+    if (!authLoading) {
+      // Petit délai pour s'assurer que Supabase est complètement initialisé
+      const timer = setTimeout(() => {
+        fetchProducts();
+        fetchCategories();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [authLoading]);
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
+      console.log('Fetching categories...');
+      
+      const data = await retrySupabaseRequest(async () => {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name');
 
-      if (error) throw error;
+        if (error) throw error;
+        return data;
+      });
+      
       setCategories(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching categories:', error);
+      
+      // En cas d'échec définitif, utiliser des catégories par défaut
+      console.warn('Utilisation des catégories par défaut');
+      setCategories([
+        { id: 'all', name: 'Toutes les catégories' }
+      ]);
     }
   };
 
   const fetchProducts = async () => {
     try {
       console.log('Fetching products...');
-      const { data, error } = await supabase
-        .from('offers')
-        .select(`
-          *,
-          categories (name)
-        `)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+      
+      const data = await retrySupabaseRequest(async () => {
+        const { data, error } = await supabase
+          .from('offers')
+          .select(`
+            *,
+            categories (name)
+          `)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
+        return data;
+      });
 
       console.log('Products fetched:', data?.length);
       const transformedProducts = (data || []).map((dbProduct: DatabaseProduct) => ({
@@ -114,11 +141,12 @@ const ProductList = () => {
       }));
 
       setProducts(transformedProducts);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching products:', error);
+      
       toast({
-        title: "Erreur",
-        description: "Impossible de charger les offres.",
+        title: "Erreur de connexion",
+        description: "Impossible de charger les offres après plusieurs tentatives. Veuillez rafraîchir la page.",
         variant: "destructive",
       });
     } finally {
@@ -151,7 +179,7 @@ const ProductList = () => {
         return category?.id === selectedCategory;
       });
 
-  if (loading) {
+  if (loading || authLoading) {
     return <LoadingState />;
   }
 
