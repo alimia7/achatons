@@ -43,8 +43,7 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
 
     try {
       // Insérer la participation avec le statut "pending" par défaut
-      // Note: Les insertions anonymes nécessitent une politique RLS appropriée dans Supabase
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('participations')
         .insert([
           {
@@ -56,21 +55,9 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
             quantity: parseInt(formData.quantity),
             status: 'pending'
           }
-        ])
-        .select();
+        ]);
 
-      if (error) {
-        console.error('Error submitting participation:', error);
-        console.error('Error details:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
-        throw error;
-      }
-
-      console.log('Participation submitted successfully:', data);
+      if (error) throw error;
 
       toast({
         title: "Demande enregistrée!",
@@ -80,21 +67,11 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
       // Afficher le message de confirmation
       setShowConfirmation(true);
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error submitting participation:', error);
-      
-      // Message d'erreur plus détaillé
-      let errorMessage = "Une erreur s'est produite lors de l'enregistrement de votre demande.";
-      
-      if (error?.code === '42501' || error?.message?.includes('permission denied') || error?.message?.includes('401')) {
-        errorMessage = "Erreur d'authentification. Veuillez contacter le support si le problème persiste.";
-      } else if (error?.message) {
-        errorMessage = `Erreur: ${error.message}`;
-      }
-      
       toast({
         title: "Erreur",
-        description: errorMessage,
+        description: "Une erreur s'est produite lors de l'enregistrement de votre demande.",
         variant: "destructive",
       });
     } finally {
