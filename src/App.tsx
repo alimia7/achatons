@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import ProductList from "./pages/ProductList";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
+import SellerDashboard from "./pages/SellerDashboard";
 import LegalPages from "./pages/LegalPages";
 import FAQ from "./pages/FAQ";
 import CGU from "./pages/CGU";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/produits" element={<ProductList />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/seller-dashboard" element={<SellerDashboard />} />
             <Route path="/legal" element={<LegalPages />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/cgu" element={<CGU />} />

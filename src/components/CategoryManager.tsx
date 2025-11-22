@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Edit, Trash2, Plus, X } from 'lucide-react';
 
@@ -36,13 +37,17 @@ const CategoryManager = ({ onSaved }: CategoryManagerProps) => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
+      const q = query(collection(db, 'categories'), orderBy('name'));
+      const snap = await getDocs(q);
+      const list: Category[] = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          name: data.name,
+          description: data.description || '',
+        };
+      });
+      setCategories(list);
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast({
@@ -60,16 +65,11 @@ const CategoryManager = ({ onSaved }: CategoryManagerProps) => {
     try {
       if (editingCategory) {
         // Update existing category
-        const { error } = await supabase
-          .from('categories')
-          .update({
-            name: formData.name,
-            description: formData.description,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingCategory.id);
-
-        if (error) throw error;
+        await updateDoc(doc(db, 'categories', editingCategory.id), {
+          name: formData.name,
+          description: formData.description,
+          updated_at: new Date().toISOString(),
+        });
 
         toast({
           title: "Succès",
@@ -77,14 +77,12 @@ const CategoryManager = ({ onSaved }: CategoryManagerProps) => {
         });
       } else {
         // Create new category
-        const { error } = await supabase
-          .from('categories')
-          .insert([{
-            name: formData.name,
-            description: formData.description,
-          }]);
-
-        if (error) throw error;
+        await addDoc(collection(db, 'categories'), {
+          name: formData.name,
+          description: formData.description,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
 
         toast({
           title: "Succès",
@@ -120,12 +118,7 @@ const CategoryManager = ({ onSaved }: CategoryManagerProps) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette catégorie ?')) return;
 
     try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
-
-      if (error) throw error;
+      await deleteDoc(doc(db, 'categories', categoryId));
 
       toast({
         title: "Succès",

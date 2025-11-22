@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface Offer {
   id: string;
@@ -29,17 +30,37 @@ export const useOffers = () => {
   const fetchOffers = async () => {
     try {
       console.log('Fetching offers...');
-      const { data, error } = await supabase
-        .from('offers')
-        .select(`
-          *,
-          categories (name)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      console.log('Offers fetched:', data?.length);
-      setOffers(data || []);
+      const [offersSnap, categoriesSnap] = await Promise.all([
+        getDocs(collection(db, 'offers')),
+        getDocs(collection(db, 'categories')),
+      ]);
+      const categoryMap = new Map<string, string>();
+      categoriesSnap.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        categoryMap.set(docSnap.id, data.name || '');
+      });
+      const result: Offer[] = offersSnap.docs.map((docSnap) => {
+        const data = docSnap.data() as any;
+        const categoryId = data.category_id || '';
+        return {
+          id: docSnap.id,
+          name: data.name,
+          description: data.description || '',
+          original_price: data.original_price,
+          group_price: data.group_price,
+          current_participants: data.current_participants || 0,
+          target_participants: data.target_participants,
+          deadline: data.deadline,
+          status: data.status,
+          supplier: data.supplier || '',
+          category_id: categoryId || undefined,
+          categories: categoryId ? { name: categoryMap.get(categoryId) || '' } : undefined,
+          created_by_admin: !!data.created_by_admin,
+          created_by_user_id: data.created_by_user_id || undefined,
+        };
+      });
+      console.log('Offers fetched:', result.length);
+      setOffers(result);
     } catch (error) {
       console.error('Error fetching offers:', error);
       toast({

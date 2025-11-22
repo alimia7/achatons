@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface Category {
   id: string;
@@ -13,13 +14,17 @@ export const useCategories = () => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
+      const q = query(collection(db, 'categories'), orderBy('name'));
+      const snap = await getDocs(q);
+      const result: Category[] = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          name: data.name,
+          description: data.description || '',
+        };
+      });
+      setCategories(result);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }

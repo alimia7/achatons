@@ -14,7 +14,7 @@ import {
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, isSeller, signOut } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
@@ -74,6 +74,17 @@ const Header = () => {
                         <Link to="/admin" className="flex items-center">
                           <Settings className="h-4 w-4 mr-2" />
                           Administration
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  {isSeller && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to="/seller-dashboard" className="flex items-center">
+                          <Settings className="h-4 w-4 mr-2" />
+                          Tableau de bord vendeur
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
@@ -154,6 +165,15 @@ const Header = () => {
                         onClick={() => setIsMenuOpen(false)}
                       >
                         Administration
+                      </Link>
+                    )}
+                    {isSeller && (
+                      <Link 
+                        to="/seller-dashboard" 
+                        className="block text-achatons-brown hover:text-achatons-orange transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Tableau de bord vendeur
                       </Link>
                     )}
                     <button 

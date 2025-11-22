@@ -11,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/firebase";
+import { addDoc, collection } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Phone, Mail, MapPin, Facebook, Instagram, Linkedin, Clock } from "lucide-react";
 
 interface ContactModalProps {
@@ -23,6 +25,7 @@ interface ContactModalProps {
 }
 
 const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalProps) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -43,21 +46,23 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
 
     try {
       // Insérer la participation avec le statut "pending" par défaut
-      const { error } = await supabase
-        .from('participations')
-        .insert([
-          {
-            offer_id: productId,
-            user_name: formData.name,
-            user_phone: formData.phone,
-            user_email: formData.email || null,
-            user_address: formData.address,
-            quantity: parseInt(formData.quantity),
-            status: 'pending'
-          }
-        ]);
-
-      if (error) throw error;
+      const participationData: any = {
+        offer_id: productId,
+        user_name: formData.name,
+        user_phone: formData.phone,
+        user_email: formData.email || null,
+        user_address: formData.address,
+        quantity: parseInt(formData.quantity),
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      };
+      
+      // Add user_id if user is authenticated
+      if (user?.uid) {
+        participationData.user_id = user.uid;
+      }
+      
+      await addDoc(collection(db, 'participations'), participationData);
 
       toast({
         title: "Demande enregistrée!",

@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
+import { db, storage } from '@/lib/firebase';
+import { addDoc, collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
 
@@ -65,22 +67,11 @@ const ProposeProductModal = ({ isOpen, onClose, categories }: ProposeProductModa
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        return null;
-      }
-
-      const { data } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-
-      return data.publicUrl;
+      const filePath = `product-images/${fileName}`;
+      const storageRef = ref(storage, filePath);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      return url;
     } catch (error) {
       console.error('Error uploading image:', error);
       return null;
@@ -122,11 +113,11 @@ const ProposeProductModal = ({ isOpen, onClose, categories }: ProposeProductModa
         ...(imageUrl && { image_url: imageUrl }),
       };
 
-      const { error } = await supabase
-        .from('offers')
-        .insert([dataToSave]);
-
-      if (error) throw error;
+      await addDoc(collection(db, 'offers'), {
+        ...dataToSave,
+        created_at: new Date().toISOString(),
+        created_by_admin: false,
+      });
 
       toast({
         title: "Succès",

@@ -8,7 +8,8 @@ import ProductGrid from "@/components/ProductGrid";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
 import ProposeProductSection from "@/components/ProposeProductSection";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 interface DatabaseProduct {
@@ -69,13 +70,12 @@ const ProductList = () => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
+      const snap = await getDocs(collection(db, 'categories'));
+      const list = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return { id: d.id, name: data.name as string };
+      });
+      setCategories(list);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
@@ -84,34 +84,49 @@ const ProductList = () => {
   const fetchProducts = async () => {
     try {
       console.log('Fetching products...');
-      const { data, error } = await supabase
-        .from('offers')
-        .select(`
-          *,
-          categories (name)
-        `)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      console.log('Products fetched:', data?.length);
-      const transformedProducts = (data || []).map((dbProduct: DatabaseProduct) => ({
-        id: parseInt(dbProduct.id.replace(/-/g, '').substring(0, 8), 16),
-        originalId: dbProduct.id,
-        name: dbProduct.name,
-        description: dbProduct.description || '',
-        originalPrice: dbProduct.original_price,
-        groupPrice: dbProduct.group_price,
-        savings: Math.round(((dbProduct.original_price - dbProduct.group_price) / dbProduct.original_price) * 100),
-        currentParticipants: dbProduct.current_participants || 0,
-        targetParticipants: dbProduct.target_participants,
-        deadline: dbProduct.deadline,
-        image: dbProduct.image_url || "/placeholder.svg",
-        supplier: dbProduct.supplier || 'Fournisseur non spécifié',
-        category: dbProduct.categories?.name,
-        unitOfMeasure: dbProduct.unit_of_measure || 'pièces'
-      }));
+      // Filter offers by status 'active' to match Firestore rules
+      const offersQuery = query(
+        collection(db, 'offers'),
+        where('status', '==', 'active')
+      );
+      const [offersSnap, categoriesSnap] = await Promise.all([
+        getDocs(offersQuery),
+        getDocs(collection(db, 'categories')),
+      ]);
+      const categoryMap = new Map<string, string>();
+      categoriesSnap.forEach((d) => {
+        const data = d.data() as any;
+        categoryMap.set(d.id, data.name || '');
+      });
+      const transformedProducts = offersSnap.docs
+        .map((docSnap) => {
+          const dbProduct = docSnap.data() as any;
+          // All offers from query are already active, no need to filter
+          const numericId = parseInt(
+            [...docSnap.id]
+              .map((c) => c.charCodeAt(0).toString(16))
+              .join('')
+              .substring(0, 8),
+            16
+          );
+          return {
+            id: numericId,
+            originalId: docSnap.id,
+            name: dbProduct.name,
+            description: dbProduct.description || '',
+            originalPrice: dbProduct.original_price,
+            groupPrice: dbProduct.group_price,
+            savings: Math.round(((dbProduct.original_price - dbProduct.group_price) / dbProduct.original_price) * 100),
+            currentParticipants: dbProduct.current_participants || 0,
+            targetParticipants: dbProduct.target_participants,
+            deadline: dbProduct.deadline,
+            image: dbProduct.image_url || "/placeholder.svg",
+            supplier: dbProduct.supplier || 'Fournisseur non spécifié',
+            category: dbProduct.category_id ? categoryMap.get(dbProduct.category_id) : undefined,
+            unitOfMeasure: dbProduct.unit_of_measure || 'pièces'
+          } as Product;
+        })
+        .filter(Boolean) as Product[];
 
       setProducts(transformedProducts);
     } catch (error) {

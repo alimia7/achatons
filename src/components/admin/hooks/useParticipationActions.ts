@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export const useParticipationActions = (onParticipationsChange: () => void) => {
   const { toast } = useToast();
@@ -15,15 +16,7 @@ export const useParticipationActions = (onParticipationsChange: () => void) => {
     try {
       console.log('Validating participation:', participationId);
       
-      const { error } = await supabase
-        .from('participations')
-        .update({ status: 'validated' })
-        .eq('id', participationId);
-
-      if (error) {
-        console.error('Error validating participation:', error);
-        throw error;
-      }
+      await updateDoc(doc(db, 'participations', participationId), { status: 'validated' });
 
       console.log('Participation validated successfully');
       
@@ -55,15 +48,7 @@ export const useParticipationActions = (onParticipationsChange: () => void) => {
     try {
       console.log('Cancelling participation:', participationId);
       
-      const { error } = await supabase
-        .from('participations')
-        .update({ status: 'cancelled' })
-        .eq('id', participationId);
-
-      if (error) {
-        console.error('Error cancelling participation:', error);
-        throw error;
-      }
+      await updateDoc(doc(db, 'participations', participationId), { status: 'cancelled' });
 
       console.log('Participation cancelled successfully');
       

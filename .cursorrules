@@ -1,0 +1,111 @@
+name: Achat'ons - Cursor Rules
+description: Règles d'identité et de design pour générer de nouvelles pages cohérentes
+
+rules:
+  - title: Identité & Marque
+    details:
+      - Utiliser exclusivement la palette Tailwind du projet:
+      - Primaires: achatons-orange (CTA), achatons-brown (textes principaux)
+      - Fond: achatons-cream (sections, arrières-plans)
+      - Ton éditorial: positif, clair, accessible; messages/toasts concis
+      - Iconographie: lucide-react uniquement; tailles 16–24px selon contexte
+
+  - title: Layout & Grille
+    details:
+      - Page: "min-h-screen bg-gradient-to-br from-achatons-cream to-white" pour pages vitrines
+      - Container standard: "container mx-auto px-4 py-12"
+      - Sections: titres centrés si pertinent; espacement vertical généreux
+      - Grilles: grid responsive (2–4 colonnes selon largeur)
+
+  - title: Titres & Typographie
+    details:
+      - H1 (pages): "text-4xl md:text-5xl font-bold text-achatons-brown"
+      - H2 (sections): "text-2xl md:text-3xl font-semibold text-achatons-brown"
+      - Paragraphe: "text-gray-700" (ou "text-gray-600" pour auxiliaire)
+      - Liens: défaut + "hover:text-achatons-orange transition-colors"
+
+  - title: Composants UI (shadcn/ui)
+    details:
+      - Boutons:
+        - CTA principal: Button avec "bg-achatons-orange hover:bg-achatons-brown"
+        - Secondaire: variant="outline" avec bordure gris clair
+        - Pleine largeur sur mobile pour actions majeures
+      - Cards: utiliser Card, CardHeader, CardTitle, CardContent; bordures douces
+      - Formulaires: Label + Input/Textarea; placeholders descriptifs; "space-y-4"
+      - Dialog/Modals: Dialog + DialogContent (max-w adapté); CTA à droite
+      - Tables: Table shadcn; Badge pour statuts
+      - Badges: couleurs cohérentes pour "active", "pending", "cancelled", "validated"
+      - Toasts: via useToast/sonner; messages brefs et actionnables
+
+  - title: Images & Média
+    details:
+      - Vignettes produits: "rounded-md border object-cover"
+      - Upload: valider taille/type; feedback en cas d’échec
+      - Placeholder: "/placeholder.svg" si manquant
+
+  - title: Accessibilité & UX
+    details:
+      - Contrastes suffisants (achatons-brown sur fond clair)
+      - Focus visibles; zones cliquables suffisamment larges
+      - Libellés explicites pour boutons/inputs
+      - Erreurs/toasts précis, sans jargon technique
+
+  - title: Motifs de pages
+    details:
+      - En-tête de page: H1 + paragraphe lead; filtres/contrôles sous l’intro
+      - Liste (produits/offres): EmptyState dédié; LoadingState pendant fetch
+      - CTA final: bloc "Proposer un produit" ou contact, CTA principal
+
+  - title: Utilitaires recommandés
+    details:
+      - Section container: "container mx-auto px-4 py-12"
+      - Titre section: "text-2xl md:text-3xl font-semibold text-achatons-brown mb-2"
+      - Lead: "text-xl text-gray-700 max-w-3xl mx-auto mb-8 text-center"
+      - Bouton CTA: "bg-achatons-orange hover:bg-achatons-brown transition-colors"
+
+  - title: Forme du code (React/TS)
+    details:
+      - Composants fonctionnels, noms explicites et lisibles
+      - Hooks pour la logique (fetch, actions, états)
+      - Éviter les styles inline complexes; privilégier classes utilitaires
+      - Respecter le découpage shadcn (ui/*) et patterns existants
+
+  - title: Exemples - Section standard
+    examples:
+      - |
+        import { ReactNode } from 'react';
+        export const Section = ({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) => (
+          <section className="container mx-auto px-4 py-12">
+            <div className="text-center mb-12">
+              <h2 className="text-2xl md:text-3xl font-semibold text-achatons-brown">{title}</h2>
+              {subtitle && <p className="text-xl text-gray-700 max-w-3xl mx-auto mt-2">{subtitle}</p>}
+            </div>
+            {children}
+          </section>
+        );
+
+  - title: Exemples - Bouton CTA
+    examples:
+      - |
+        import { Button } from '@/components/ui/button';
+        export const CtaButton = (props: React.ComponentProps<typeof Button>) => (
+          <Button className="bg-achatons-orange hover:bg-achatons-brown" {...props} />
+        );
+
+  - title: Exemples - Empty state
+    examples:
+      - |
+        export const EmptyBlock = ({ message }: { message: string }) => (
+          <div className="text-center py-16 text-gray-600 border rounded-md bg-white">
+            <p>{message}</p>
+          </div>
+        );
+
+  - title: À éviter
+    details:
+      - Introduire des couleurs hors palette
+      - Multiplier des variantes non standard de boutons
+      - Textes trop longs sans hiérarchie (titres, sous-titres, paragraphes)
+      - Éléments non alignés au grid/layout standard du projet
+
+

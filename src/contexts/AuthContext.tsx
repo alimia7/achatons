@@ -1,17 +1,20 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: FirebaseUser | null;
+  session: null;
   isAdmin: boolean;
+  isSeller: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, fullName?: string) => Promise<any>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<any>;
+  signInWithGoogle: () => Promise<any>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,67 +28,42 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [session] = useState<null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const checkAdminStatus = async (userId: string) => {
+  const checkUserRole = async (userId: string) => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-      
-      setIsAdmin(data?.role === 'admin');
+      const profileRef = doc(db, 'profiles', userId);
+      const snap = await getDoc(profileRef);
+      const role = snap.exists() ? (snap.data() as any)?.role : null;
+      setIsAdmin(role === 'admin');
+      setIsSeller(role === 'vendeur' || role === 'seller');
     } catch (error) {
-      console.error('Error checking admin status:', error);
+      console.error('Error checking user role:', error);
       setIsAdmin(false);
+      setIsSeller(false);
     }
   };
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Check admin status after setting user
-          setTimeout(() => {
-            checkAdminStatus(session.user.id);
-          }, 0);
-        } else {
-          setIsAdmin(false);
-        }
-        
-        setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser?.uid) {
+        checkUserRole(currentUser.uid);
+      } else {
+        setIsAdmin(false);
+        setIsSeller(false);
       }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        checkAdminStatus(session.user.id);
-      }
-      
       setLoading(false);
     });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const result = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return result;
+    return await signInWithEmailAndPassword(auth, email, password);
   };
 
   const getRedirectUrl = () => {
@@ -96,39 +74,60 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const result = await supabase.auth.signUp({
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const userId = cred.user.uid;
+    await setDoc(doc(db, 'profiles', userId), {
+      id: userId,
       email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-        emailRedirectTo: getRedirectUrl(),
-      },
-    });
-    return result;
+      full_name: fullName || null,
+      role: 'user',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+    return cred;
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await firebaseSignOut(auth);
   };
 
   const resetPassword = async (email: string) => {
-    const result = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: getRedirectUrl(),
-    });
-    return result;
+    await sendPasswordResetEmail(auth, email, { url: getRedirectUrl() });
+    return { success: true };
+  };
+
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const cred = await signInWithPopup(auth, provider);
+    const u = cred.user;
+    if (u?.uid) {
+      const profileRef = doc(db, 'profiles', u.uid);
+      const existing = await getDoc(profileRef);
+      if (!existing.exists()) {
+        await setDoc(profileRef, {
+          id: u.uid,
+          email: u.email || null,
+          full_name: u.displayName || null,
+          role: 'user',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+      }
+    }
+    return cred;
   };
 
   const value: AuthContextType = {
     user,
     session,
     isAdmin,
+    isSeller,
     loading,
     signIn,
     signUp,
     signOut,
     resetPassword,
+    signInWithGoogle,
   };
 
   return (

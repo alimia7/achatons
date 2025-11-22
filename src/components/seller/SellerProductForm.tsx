@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,39 +5,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, doc, updateDoc, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
-
-interface Offer {
-  id: string;
-  name: string;
-  description: string;
-  original_price: number;
-  group_price: number;
-  current_participants: number;
-  target_participants: number;
-  deadline: string;
-  status: string;
-  supplier: string;
-  category_id?: string;
-  unit_of_measure?: string;
-}
+import { SellerProduct } from './hooks/useSellerProducts';
 
 interface Category {
   id: string;
   name: string;
-  description: string;
 }
 
-interface OfferFormProps {
-  offer?: Offer | null;
-  onSaved: () => void;
+interface SellerProductFormProps {
+  product?: SellerProduct | null;
+  onSaved: (productData: any) => void;
   onCancel: () => void;
 }
 
-const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
+const SellerProductForm = ({ product, onSaved, onCancel }: SellerProductFormProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,67 +31,58 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    original_price: '',
-    group_price: '',
-    target_participants: '',
-    deadline: '',
-    status: 'active',
-    supplier: '',
     category_id: '',
+    base_price: '',
     unit_of_measure: 'pièces',
+    status: 'active' as 'active' | 'inactive',
   });
 
   useEffect(() => {
     fetchCategories();
-    if (offer) {
+    if (product) {
       setFormData({
-        name: offer.name,
-        description: offer.description || '',
-        original_price: offer.original_price.toString(),
-        group_price: offer.group_price.toString(),
-        target_participants: offer.target_participants.toString(),
-        deadline: offer.deadline,
-        status: offer.status,
-        supplier: offer.supplier || '',
-        category_id: offer.category_id || '',
-        unit_of_measure: offer.unit_of_measure || 'pièces',
+        name: product.name,
+        description: product.description || '',
+        category_id: product.category_id || '',
+        base_price: product.base_price.toString(),
+        unit_of_measure: product.unit_of_measure || 'pièces',
+        status: product.status,
       });
+      if (product.image_url) {
+        setImagePreview(product.image_url);
+      }
     }
-  }, [offer]);
+  }, [product]);
 
   const fetchCategories = async () => {
     try {
       const q = query(collection(db, 'categories'), orderBy('name'));
       const snap = await getDocs(q);
-      const list: Category[] = snap.docs.map((d) => {
-        const data = d.data() as any;
-        return {
-          id: d.id,
-          name: data.name,
-          description: data.description || '',
-        };
-      });
+      const list: Category[] = snap.docs.map((d) => ({
+        id: d.id,
+        name: d.data().name,
+      }));
       setCategories(list);
     } catch (error) {
       console.error('Error fetching categories:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les catégories.",
-        variant: "destructive",
-      });
     }
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast({
+          title: "Erreur",
+          description: "L'image ne doit pas dépasser 2 Mo.",
+          variant: "destructive",
+        });
+        return;
+      }
       setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -129,8 +104,7 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
       const filePath = `product-images/${fileName}`;
       const storageRef = ref(storage, filePath);
       await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      return url;
+      return await getDownloadURL(storageRef);
     } catch (error) {
       console.error('Error uploading image:', error);
       return null;
@@ -142,7 +116,7 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
     setLoading(true);
 
     try {
-      let imageUrl = null;
+      let imageUrl = product?.image_url || null;
       
       if (imageFile) {
         imageUrl = await uploadImage(imageFile);
@@ -157,41 +131,19 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
         }
       }
 
-      const dataToSave = {
+      const productData = {
         name: formData.name,
         description: formData.description,
-        original_price: parseInt(formData.original_price),
-        group_price: parseInt(formData.group_price),
-        target_participants: parseInt(formData.target_participants),
-        deadline: formData.deadline,
-        status: formData.status,
-        supplier: formData.supplier,
         category_id: formData.category_id || null,
+        base_price: parseFloat(formData.base_price),
         unit_of_measure: formData.unit_of_measure,
-        updated_at: new Date().toISOString(),
+        status: formData.status,
         ...(imageUrl && { image_url: imageUrl }),
       };
 
-      let error;
-      
-      if (offer) {
-        await updateDoc(doc(db, 'offers', offer.id), dataToSave);
-      } else {
-        await addDoc(collection(db, 'offers'), {
-          ...dataToSave,
-          created_at: new Date().toISOString(),
-          created_by_admin: true,
-        });
-      }
-
-      toast({
-        title: "Succès",
-        description: offer ? "L'offre a été mise à jour avec succès." : "L'offre a été créée avec succès.",
-      });
-
-      onSaved();
+      onSaved(productData);
     } catch (error) {
-      console.error('Error saving offer:', error);
+      console.error('Error saving product:', error);
       toast({
         title: "Erreur",
         description: "Une erreur s'est produite lors de la sauvegarde.",
@@ -216,30 +168,20 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
           />
         </div>
         <div>
-          <Label htmlFor="supplier">Fournisseur</Label>
-          <Input
-            id="supplier"
-            value={formData.supplier}
-            onChange={(e) => handleInputChange('supplier', e.target.value)}
-            placeholder="Ex: Coopérative du Delta"
-          />
+          <Label htmlFor="category">Catégorie</Label>
+          <Select value={formData.category_id} onValueChange={(value) => handleInputChange('category_id', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Sélectionnez une catégorie" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </div>
-
-      <div>
-        <Label htmlFor="category">Catégorie</Label>
-        <Select value={formData.category_id} onValueChange={(value) => handleInputChange('category_id', value)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Sélectionnez une catégorie" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div>
@@ -254,7 +196,7 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
       </div>
 
       <div>
-        <Label htmlFor="image">Image du produit</Label>
+        <Label htmlFor="image">Image du produit (JPG/PNG, max 2Mo)</Label>
         <div className="mt-2">
           {imagePreview ? (
             <div className="relative inline-block">
@@ -282,53 +224,28 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
                   <input
                     id="image-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png"
                     onChange={handleImageChange}
                     className="hidden"
                   />
                 </label>
               </div>
-              <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF jusqu'à 10MB</p>
+              <p className="text-xs text-gray-500 mt-1">PNG, JPG jusqu'à 2MB</p>
             </div>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div>
-          <Label htmlFor="original_price">Prix unitaire (FCFA) *</Label>
+          <Label htmlFor="base_price">Prix de base (FCFA) *</Label>
           <Input
-            id="original_price"
+            id="base_price"
             type="number"
-            value={formData.original_price}
-            onChange={(e) => handleInputChange('original_price', e.target.value)}
+            value={formData.base_price}
+            onChange={(e) => handleInputChange('base_price', e.target.value)}
             required
             placeholder="35000"
-          />
-        </div>
-        <div>
-          <Label htmlFor="group_price">Prix groupé (FCFA) *</Label>
-          <Input
-            id="group_price"
-            type="number"
-            value={formData.group_price}
-            onChange={(e) => handleInputChange('group_price', e.target.value)}
-            required
-            placeholder="25000"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        <div>
-          <Label htmlFor="target_participants">Participants cibles *</Label>
-          <Input
-            id="target_participants"
-            type="number"
-            value={formData.target_participants}
-            onChange={(e) => handleInputChange('target_participants', e.target.value)}
-            required
-            placeholder="100"
           />
         </div>
         <div>
@@ -349,26 +266,14 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
           </Select>
         </div>
         <div>
-          <Label htmlFor="deadline">Date limite *</Label>
-          <Input
-            id="deadline"
-            type="date"
-            value={formData.deadline}
-            onChange={(e) => handleInputChange('deadline', e.target.value)}
-            required
-          />
-        </div>
-        <div>
           <Label htmlFor="status">Statut</Label>
-          <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
+          <Select value={formData.status} onValueChange={(value: any) => handleInputChange('status', value)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="active">Actif</SelectItem>
-              <SelectItem value="paused">En pause</SelectItem>
-              <SelectItem value="completed">Terminé</SelectItem>
-              <SelectItem value="cancelled">Annulé</SelectItem>
+              <SelectItem value="inactive">Inactif</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -383,11 +288,12 @@ const OfferForm = ({ offer, onSaved, onCancel }: OfferFormProps) => {
           className="bg-achatons-orange hover:bg-achatons-brown"
           disabled={loading}
         >
-          {loading ? "Sauvegarde..." : (offer ? "Mettre à jour" : "Créer l'offre")}
+          {loading ? "Sauvegarde..." : (product ? "Mettre à jour" : "Enregistrer")}
         </Button>
       </div>
     </form>
   );
 };
 
-export default OfferForm;
+export default SellerProductForm;
+

@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface Participation {
   id: string;
@@ -23,17 +24,31 @@ export const useParticipations = () => {
   const fetchParticipations = async () => {
     try {
       console.log('Fetching participations...');
-      const { data, error } = await supabase
-        .from('participations')
-        .select(`
-          *,
-          offers (name)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      console.log('Participations fetched:', data?.length);
-      setParticipations(data || []);
+      const [partsSnap, offersSnap] = await Promise.all([
+        getDocs(collection(db, 'participations')),
+        getDocs(collection(db, 'offers')),
+      ]);
+      const offerNameById = new Map<string, string>();
+      offersSnap.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        offerNameById.set(docSnap.id, data.name || '');
+      });
+      const result: Participation[] = partsSnap.docs.map((docSnap) => {
+        const data = docSnap.data() as any;
+        const offerId = data.offer_id;
+        return {
+          id: docSnap.id,
+          user_name: data.user_name,
+          user_phone: data.user_phone,
+          user_email: data.user_email || '',
+          quantity: data.quantity || 0,
+          status: data.status || 'pending',
+          created_at: data.created_at || '',
+          offers: { name: offerNameById.get(offerId) || '' },
+        };
+      });
+      console.log('Participations fetched:', result.length);
+      setParticipations(result);
     } catch (error) {
       console.error('Error fetching participations:', error);
       toast({

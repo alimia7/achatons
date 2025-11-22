@@ -1,18 +1,14 @@
 
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export const useOfferActions = (onOffersChange: () => void) => {
   const { toast } = useToast();
 
   const deleteOffer = async (offerId: string) => {
     try {
-      const { error } = await supabase
-        .from('offers')
-        .delete()
-        .eq('id', offerId);
-
-      if (error) throw error;
+      await deleteDoc(doc(db, 'offers', offerId));
 
       toast({
         title: "Succès",

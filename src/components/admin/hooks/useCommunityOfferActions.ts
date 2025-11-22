@@ -1,21 +1,17 @@
 
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { db } from '@/lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export const useCommunityOfferActions = (onOffersChange: () => void) => {
   const { toast } = useToast();
 
   const approveOffer = async (offerId: string) => {
     try {
-      const { error } = await supabase
-        .from('offers')
-        .update({ 
+      await updateDoc(doc(db, 'offers', offerId), { 
           status: 'active',
-          created_by_admin: true // Mark as admin-approved
-        })
-        .eq('id', offerId);
-
-      if (error) throw error;
+        created_by_admin: true
+      });
 
       toast({
         title: "Succès",
@@ -34,12 +30,7 @@ export const useCommunityOfferActions = (onOffersChange: () => void) => {
 
   const rejectOffer = async (offerId: string) => {
     try {
-      const { error } = await supabase
-        .from('offers')
-        .update({ status: 'rejected' })
-        .eq('id', offerId);
-
-      if (error) throw error;
+      await updateDoc(doc(db, 'offers', offerId), { status: 'rejected' });
 
       toast({
         title: "Succès",

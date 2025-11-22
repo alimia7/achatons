@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 interface Offer {
@@ -45,12 +46,7 @@ const ProgressUpdateModal = ({ isOpen, onClose, offer, onUpdate }: ProgressUpdat
         return;
       }
 
-      const { error } = await supabase
-        .from('offers')
-        .update({ current_participants: participants })
-        .eq('id', offer.id);
-
-      if (error) throw error;
+      await updateDoc(doc(db, 'offers', offer.id), { current_participants: participants });
 
       toast({
         title: "Succès",
