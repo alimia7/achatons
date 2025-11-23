@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useSellerClients, SellerClient } from './hooks/useSellerClients';
-import { Search, Mail, Phone, Download } from 'lucide-react';
+import { Search, Phone, Download } from 'lucide-react';
 import LoadingState from '@/components/LoadingState';
 
 const SellerClientsTab = () => {
@@ -16,10 +16,6 @@ const SellerClientsTab = () => {
     client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const handleContactEmail = (email: string) => {
-    window.location.href = `mailto:${email}`;
-  };
 
   const handleContactWhatsApp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -108,26 +104,17 @@ const SellerClientsTab = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {client.email && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactEmail(client.email)}
-                            >
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {client.phone && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactWhatsApp(client.phone)}
-                            >
-                              <Phone className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
+                        {client.phone && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactWhatsApp(client.phone)}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <Phone className="h-4 w-4 mr-1" />
+                            WhatsApp
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

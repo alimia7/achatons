@@ -10,6 +10,8 @@ import ProductList from "./pages/ProductList";
 import Auth from "./pages/Auth";
 import AdminDashboard from "./pages/AdminDashboard";
 import SellerDashboard from "./pages/SellerDashboard";
+import UserDashboard from "./pages/UserDashboard";
+import BecomeSeller from "./pages/BecomeSeller";
 import LegalPages from "./pages/LegalPages";
 import FAQ from "./pages/FAQ";
 import CGU from "./pages/CGU";
@@ -30,6 +32,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/seller-dashboard" element={<SellerDashboard />} />
+            <Route path="/user-dashboard" element={<UserDashboard />} />
+            <Route path="/become-seller" element={<BecomeSeller />} />
             <Route path="/legal" element={<LegalPages />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/cgu" element={<CGU />} />

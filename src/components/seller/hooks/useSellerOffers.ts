@@ -7,6 +7,7 @@ export interface SellerOffer {
   id: string;
   product_id: string;
   product_name?: string;
+  product_image?: string;
   group_price: number;
   target_participants: number;
   current_participants: number;
@@ -54,16 +55,19 @@ export const useSellerOffers = () => {
       
       for (const d of snap.docs) {
         const data = d.data();
-        // Fetch product name if product_id exists
+        // Fetch product info if product_id exists
         let productName = '';
+        let productImage = '';
         if (data.product_id) {
           try {
             const productDoc = await getDoc(doc(db, 'products', data.product_id));
             if (productDoc.exists()) {
-              productName = productDoc.data().name;
+              const productData = productDoc.data();
+              productName = productData.name;
+              productImage = productData.image_url || '';
             }
           } catch (e) {
-            console.error('Error fetching product name:', e);
+            console.error('Error fetching product info:', e);
           }
         }
         
@@ -71,6 +75,7 @@ export const useSellerOffers = () => {
           id: d.id,
           ...data,
           product_name: productName,
+          product_image: productImage,
         } as SellerOffer);
       }
       
@@ -114,17 +119,31 @@ export const useSellerOffers = () => {
     return docRef.id;
   };
 
-  const updateOffer = async (offerId: string, updates: Partial<SellerOffer>) => {
+  const updateOffer = async (offerId: string, updates: Partial<SellerOffer>, skipRefresh = false) => {
     await updateDoc(doc(db, 'offers', offerId), {
       ...updates,
       updated_at: new Date().toISOString(),
     });
-    await fetchOffers();
+    if (!skipRefresh) {
+      await fetchOffers();
+    }
   };
 
   const toggleOfferStatus = async (offerId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    await updateOffer(offerId, { status: newStatus as any });
+    // Update in Firestore
+    await updateDoc(doc(db, 'offers', offerId), {
+      status: newStatus as any,
+      updated_at: new Date().toISOString(),
+    });
+    // Update local state immediately without reloading
+    setOffers(prevOffers => 
+      prevOffers.map(offer => 
+        offer.id === offerId 
+          ? { ...offer, status: newStatus as any }
+          : offer
+      )
+    );
   };
 
   const updateParticipantCount = async (offerId: string, count: number) => {

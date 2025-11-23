@@ -52,9 +52,12 @@ export const useSellerClients = () => {
         allParticipations.push(...participationsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
       
-      // Group participations by user_id
+      // Group participations by user_id or by unique identifier (name+phone+email)
       const clientMap = new Map<string, {
-        user_id: string;
+        user_id?: string;
+        user_name?: string;
+        user_phone?: string;
+        user_email?: string;
         offers_count: number;
         total_spent: number;
         last_participation_date: string;
@@ -63,11 +66,15 @@ export const useSellerClients = () => {
       
       allParticipations.forEach(participation => {
         const data = participation;
-        const userId = data.user_id;
+        // Use user_id if available, otherwise create a unique key from name+phone+email
+        const clientKey = data.user_id || `${data.user_name || ''}_${data.user_phone || ''}_${data.user_email || ''}`;
         
-        if (!clientMap.has(userId)) {
-          clientMap.set(userId, {
-            user_id: userId,
+        if (!clientMap.has(clientKey)) {
+          clientMap.set(clientKey, {
+            user_id: data.user_id,
+            user_name: data.user_name,
+            user_phone: data.user_phone,
+            user_email: data.user_email,
             offers_count: 0,
             total_spent: 0,
             last_participation_date: data.created_at || '',
@@ -75,36 +82,77 @@ export const useSellerClients = () => {
           });
         }
         
-        const client = clientMap.get(userId)!;
+        const client = clientMap.get(clientKey)!;
         client.offers_count += 1;
-        client.total_spent += data.amount || 0;
+        client.total_spent += (data.amount || (data.quantity || 0) * (data.group_price || 0));
         if (data.created_at > client.last_participation_date) {
           client.last_participation_date = data.created_at;
         }
         client.participations.push(data);
       });
       
-      // Fetch user profiles for each client
+      // Build clients list from participations data and profiles
       const clientsList: SellerClient[] = [];
-      for (const [userId, clientData] of clientMap.entries()) {
-        try {
-          const profileDoc = await getDoc(doc(db, 'profiles', userId));
-          if (profileDoc.exists()) {
-            const profile = profileDoc.data();
+      for (const [clientKey, clientData] of clientMap.entries()) {
+        // If user_id exists, try to fetch profile
+        if (clientData.user_id) {
+          try {
+            const profileDoc = await getDoc(doc(db, 'profiles', clientData.user_id));
+            if (profileDoc.exists()) {
+              const profile = profileDoc.data();
+              clientsList.push({
+                id: clientData.user_id,
+                user_id: clientData.user_id,
+                full_name: profile.full_name || clientData.user_name || 'Utilisateur',
+                email: profile.email || clientData.user_email || '',
+                phone: profile.phone || clientData.user_phone || '',
+                offers_count: clientData.offers_count,
+                total_spent: clientData.total_spent,
+                status: 'active',
+                last_participation_date: clientData.last_participation_date,
+              });
+            } else {
+              // Profile doesn't exist, use participation data
+              clientsList.push({
+                id: clientKey,
+                user_id: clientData.user_id,
+                full_name: clientData.user_name || 'Utilisateur',
+                email: clientData.user_email || '',
+                phone: clientData.user_phone || '',
+                offers_count: clientData.offers_count,
+                total_spent: clientData.total_spent,
+                status: 'active',
+                last_participation_date: clientData.last_participation_date,
+              });
+            }
+          } catch (e) {
+            console.error('Error fetching profile for user:', clientData.user_id, e);
+            // Fallback to participation data
             clientsList.push({
-              id: userId,
-              user_id: userId,
-              full_name: profile.full_name || 'Utilisateur',
-              email: profile.email || '',
-              phone: profile.phone || '',
+              id: clientKey,
+              user_id: clientData.user_id,
+              full_name: clientData.user_name || 'Utilisateur',
+              email: clientData.user_email || '',
+              phone: clientData.user_phone || '',
               offers_count: clientData.offers_count,
               total_spent: clientData.total_spent,
               status: 'active',
               last_participation_date: clientData.last_participation_date,
             });
           }
-        } catch (e) {
-          console.error('Error fetching profile for user:', userId, e);
+        } else {
+          // No user_id, use participation data directly
+          clientsList.push({
+            id: clientKey,
+            user_id: '',
+            full_name: clientData.user_name || 'Utilisateur',
+            email: clientData.user_email || '',
+            phone: clientData.user_phone || '',
+            offers_count: clientData.offers_count,
+            total_spent: clientData.total_spent,
+            status: 'active',
+            last_participation_date: clientData.last_participation_date,
+          });
         }
       }
       

@@ -7,10 +7,12 @@ import ProductFilters from "@/components/ProductFilters";
 import ProductGrid from "@/components/ProductGrid";
 import EmptyState from "@/components/EmptyState";
 import LoadingState from "@/components/LoadingState";
-import ProposeProductSection from "@/components/ProposeProductSection";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, getDoc, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { Search, X } from "lucide-react";
 
 interface DatabaseProduct {
   id: string;
@@ -47,6 +49,8 @@ interface Product {
   supplier: string;
   category?: string;
   unitOfMeasure?: string;
+  sellerLogo?: string | null;
+  sellerName?: string | null;
 }
 
 interface Category {
@@ -60,6 +64,7 @@ const ProductList = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -98,35 +103,106 @@ const ProductList = () => {
         const data = d.data() as any;
         categoryMap.set(d.id, data.name || '');
       });
-      const transformedProducts = offersSnap.docs
-        .map((docSnap) => {
-          const dbProduct = docSnap.data() as any;
-          // All offers from query are already active, no need to filter
-          const numericId = parseInt(
-            [...docSnap.id]
-              .map((c) => c.charCodeAt(0).toString(16))
-              .join('')
-              .substring(0, 8),
-            16
-          );
-          return {
-            id: numericId,
-            originalId: docSnap.id,
-            name: dbProduct.name,
-            description: dbProduct.description || '',
-            originalPrice: dbProduct.original_price,
-            groupPrice: dbProduct.group_price,
-            savings: Math.round(((dbProduct.original_price - dbProduct.group_price) / dbProduct.original_price) * 100),
-            currentParticipants: dbProduct.current_participants || 0,
-            targetParticipants: dbProduct.target_participants,
-            deadline: dbProduct.deadline,
-            image: dbProduct.image_url || "/placeholder.svg",
-            supplier: dbProduct.supplier || 'Fournisseur non spécifié',
-            category: dbProduct.category_id ? categoryMap.get(dbProduct.category_id) : undefined,
-            unitOfMeasure: dbProduct.unit_of_measure || 'pièces'
-          } as Product;
-        })
-        .filter(Boolean) as Product[];
+      
+      // Transform offers to products, handling both direct offers and product_id references
+      const transformedProducts: Product[] = [];
+      
+      for (const docSnap of offersSnap.docs) {
+        const dbOffer = docSnap.data() as any;
+        
+        // Skip offers that haven't started yet (start_date in the future)
+        if (dbOffer.start_date) {
+          const startDate = new Date(dbOffer.start_date);
+          const now = new Date();
+          // If start_date is in the future, skip this offer
+          if (startDate > now) {
+            continue;
+          }
+        }
+        
+        // Check if this offer references a product (seller offers)
+        let productData = dbOffer;
+        if (dbOffer.product_id) {
+          try {
+            // Fetch the referenced product
+            const productDoc = await getDoc(doc(db, 'products', dbOffer.product_id));
+            if (productDoc.exists()) {
+              const productInfo = productDoc.data();
+              // Merge offer data with product data
+              productData = {
+                ...productInfo,
+                // Override with offer-specific data
+                group_price: dbOffer.group_price,
+                target_participants: dbOffer.target_participants,
+                deadline: dbOffer.deadline,
+                current_participants: dbOffer.current_participants || 0,
+                // Use product's original_price (base_price) or offer's original_price
+                original_price: dbOffer.original_price || productInfo.base_price || productInfo.original_price,
+                // Preserve category_id from product (or offer if not in product)
+                category_id: productInfo.category_id || dbOffer.category_id,
+              };
+            }
+          } catch (error) {
+            console.error(`Error fetching product ${dbOffer.product_id}:`, error);
+            // Continue with offer data only if product fetch fails
+          }
+        }
+        
+        // Fetch seller information if seller_id exists
+        let sellerLogo = null;
+        let sellerName = null;
+        if (dbOffer.seller_id) {
+          try {
+            const sellerProfileDoc = await getDoc(doc(db, 'profiles', dbOffer.seller_id));
+            if (sellerProfileDoc.exists()) {
+              const sellerData = sellerProfileDoc.data();
+              sellerLogo = sellerData.logo_url || null;
+              sellerName = sellerData.company_name || sellerData.responsible_name || null;
+            }
+          } catch (error) {
+            console.error(`Error fetching seller profile ${dbOffer.seller_id}:`, error);
+          }
+        }
+        
+        // Ensure we have required fields with defaults
+        const originalPrice = productData.original_price || productData.base_price || 0;
+        const groupPrice = productData.group_price || 0;
+        const targetParticipants = productData.target_participants || 0;
+        const currentParticipants = productData.current_participants || 0;
+        
+        // Calculate savings safely
+        let savings = 0;
+        if (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice) {
+          savings = Math.round(((originalPrice - groupPrice) / originalPrice) * 100);
+        }
+        
+        const numericId = parseInt(
+          [...docSnap.id]
+            .map((c) => c.charCodeAt(0).toString(16))
+            .join('')
+            .substring(0, 8),
+          16
+        );
+        
+        transformedProducts.push({
+          id: numericId,
+          originalId: docSnap.id,
+          name: productData.name || 'Produit sans nom',
+          description: productData.description || '',
+          originalPrice: originalPrice,
+          groupPrice: groupPrice,
+          savings: savings,
+          currentParticipants: currentParticipants,
+          targetParticipants: targetParticipants,
+          deadline: productData.deadline || new Date().toISOString(),
+          image: productData.image_url || productData.image || "/placeholder.svg",
+          supplier: productData.supplier || 'Fournisseur non spécifié',
+          category: productData.category_id ? (categoryMap.get(productData.category_id) || productData.category_id) : undefined,
+          unitOfMeasure: productData.unit_of_measure || 'pièces',
+          sellerLogo: sellerLogo,
+          sellerName: sellerName
+        } as Product);
+      }
 
       setProducts(transformedProducts);
     } catch (error) {
@@ -159,12 +235,29 @@ const ProductList = () => {
     fetchProducts();
   };
 
-  const filteredProducts = selectedCategory === 'all' 
-    ? products 
-    : products.filter(product => {
-        const category = categories.find(cat => cat.name === product.category);
-        return category?.id === selectedCategory;
-      });
+  const filteredProducts = products.filter(product => {
+    // Filter by category
+    const categoryMatch = selectedCategory === 'all' 
+      ? true
+      : (() => {
+          const category = categories.find(cat => cat.name === product.category);
+          return category?.id === selectedCategory;
+        })();
+    
+    // Filter by search term
+    const searchMatch = searchTerm === '' || (() => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        product.name.toLowerCase().includes(searchLower) ||
+        product.description.toLowerCase().includes(searchLower) ||
+        product.supplier.toLowerCase().includes(searchLower) ||
+        (product.category && product.category.toLowerCase().includes(searchLower)) ||
+        (product.sellerName && product.sellerName.toLowerCase().includes(searchLower))
+      );
+    })();
+    
+    return categoryMatch && searchMatch;
+  });
 
   if (loading) {
     return <LoadingState />;
@@ -184,23 +277,55 @@ const ProductList = () => {
             en vous joignant à d'autres consommateurs.
           </p>
 
+          {/* Search Bar */}
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="relative flex items-center">
+              <Search className="absolute left-3 h-5 w-5 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher un produit, fournisseur, vendeur..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-10 h-12 text-base"
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-1 h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+
           <ProductFilters
             categories={categories}
             selectedCategory={selectedCategory}
             onCategoryChange={setSelectedCategory}
           />
+          
+          {/* Results count */}
+          {(searchTerm || selectedCategory !== 'all') && filteredProducts.length > 0 && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                {filteredProducts.length} offre{filteredProducts.length > 1 ? 's' : ''} trouvée{filteredProducts.length > 1 ? 's' : ''}
+                {searchTerm && ` pour "${searchTerm}"`}
+              </p>
+            </div>
+          )}
         </div>
 
         {filteredProducts.length === 0 ? (
-          <EmptyState selectedCategory={selectedCategory} />
+          <EmptyState selectedCategory={selectedCategory} searchTerm={searchTerm} />
         ) : (
           <ProductGrid
             products={filteredProducts}
             onJoinGroup={handleJoinGroup}
           />
         )}
-
-        <ProposeProductSection categories={categories} />
       </main>
 
       <Footer />

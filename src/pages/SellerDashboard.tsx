@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SellerHeader from '@/components/seller/SellerHeader';
 import SellerStatsCards from '@/components/seller/SellerStatsCards';
@@ -16,6 +16,10 @@ import LoadingState from '@/components/LoadingState';
 const SellerDashboard = () => {
   const { user, isSeller, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [initialOfferId, setInitialOfferId] = useState<string | undefined>(undefined);
+  const prevActiveTabRef = useRef(activeTab);
 
   useEffect(() => {
     if (!loading && (!user || !isSeller)) {
@@ -23,6 +27,29 @@ const SellerDashboard = () => {
       return;
     }
   }, [user, isSeller, loading, navigate]);
+
+  useEffect(() => {
+    // Check if navigation state has a tab to open
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab);
+      if (location.state.offerId) {
+        // Set the offerId after a small delay to ensure tab is switched first
+        setTimeout(() => {
+          setInitialOfferId(location.state.offerId);
+        }, 100);
+      }
+      // Clear the state to avoid reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Clear initialOfferId when switching away from offers tab
+  useEffect(() => {
+    if (prevActiveTabRef.current === 'offers' && activeTab !== 'offers') {
+      setInitialOfferId(undefined);
+    }
+    prevActiveTabRef.current = activeTab;
+  }, [activeTab]);
 
   if (loading) {
     return <LoadingState />;
@@ -36,7 +63,7 @@ const SellerDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-achatons-cream to-white">
       <div className="container mx-auto px-4 py-12">
         <SellerHeader />
-        <Tabs defaultValue="dashboard" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-6 mb-8">
             <TabsTrigger value="dashboard">Tableau de bord</TabsTrigger>
             <TabsTrigger value="products">Produits</TabsTrigger>
@@ -59,7 +86,7 @@ const SellerDashboard = () => {
           </TabsContent>
 
           <TabsContent value="offers">
-            <SellerOffersTab />
+            <SellerOffersTab initialOfferId={initialOfferId} />
           </TabsContent>
 
           <TabsContent value="clients">

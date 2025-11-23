@@ -21,6 +21,8 @@ interface Product {
   image: string;
   supplier: string;
   unitOfMeasure?: string;
+  sellerLogo?: string | null;
+  sellerName?: string | null;
 }
 
 interface ProductCardProps {
@@ -30,11 +32,25 @@ interface ProductCardProps {
 
 const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const progressPercentage = (product.currentParticipants / product.targetParticipants) * 100;
+  
+  // Safely calculate values with defaults
+  const originalPrice = product.originalPrice || 0;
+  const groupPrice = product.groupPrice || 0;
+  const currentParticipants = product.currentParticipants || 0;
+  const targetParticipants = product.targetParticipants || 1;
+  const savings = product.savings || (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice 
+    ? Math.round(((originalPrice - groupPrice) / originalPrice) * 100) 
+    : 0);
+  
+  const progressPercentage = targetParticipants > 0 
+    ? Math.min(100, Math.max(0, (currentParticipants / targetParticipants) * 100))
+    : 0;
+  
   const daysLeft = Math.ceil((new Date(product.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
+    if (!price || isNaN(price) || price <= 0) return '0 FCFA';
+    return new Intl.NumberFormat('fr-FR').format(Math.round(price)) + ' FCFA';
   };
 
   const formatDate = (dateString: string) => {
@@ -53,13 +69,15 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
             alt={product.name}
             className="w-full h-48 object-cover"
           />
-          <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-sm font-semibold">
-            -{product.savings}%
-          </div>
+          {savings > 0 && (
+            <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-sm font-semibold">
+              -{savings}%
+            </div>
+          )}
           <div className="absolute top-3 left-3" onClick={(e) => e.stopPropagation()}>
             <ShareButton
               productName={product.name}
-              productPrice={formatPrice(product.groupPrice)}
+              productPrice={formatPrice(groupPrice)}
               productUrl="/products"
             />
           </div>
@@ -86,18 +104,22 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-2xl font-bold text-achatons-orange">
-                {formatPrice(product.groupPrice)}
+                {formatPrice(groupPrice)}
               </p>
-              <p className="text-sm text-gray-500 line-through">
-                {formatPrice(product.originalPrice)}
-              </p>
+              {originalPrice > 0 && originalPrice > groupPrice && (
+                <p className="text-sm text-gray-500 line-through">
+                  {formatPrice(originalPrice)}
+                </p>
+              )}
             </div>
-            <div className="text-right">
-              <div className="flex items-center text-achatons-green text-sm font-semibold">
-                <TrendingDown className="h-4 w-4 mr-1" />
-                <span>Économie: {formatPrice(product.originalPrice - product.groupPrice)}</span>
+            {originalPrice > groupPrice && (
+              <div className="text-right">
+                <div className="flex items-center text-achatons-green text-sm font-semibold">
+                  <TrendingDown className="h-4 w-4 mr-1" />
+                  <span>Économie: {formatPrice(originalPrice - groupPrice)}</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -107,7 +129,7 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
                 Participants
               </span>
               <span className="font-semibold text-achatons-brown">
-                {product.currentParticipants}/{product.targetParticipants} {product.unitOfMeasure || 'pièces'}
+                {currentParticipants}/{targetParticipants} {product.unitOfMeasure || 'pièces'}
               </span>
             </div>
             

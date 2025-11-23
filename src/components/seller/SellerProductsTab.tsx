@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import SellerOfferForm from './SellerOfferForm';
 import { Plus, Search, Edit, Trash2, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LoadingState from '@/components/LoadingState';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const SellerProductsTab = () => {
   const { products, loading, createProduct, updateProduct, deleteProduct, toggleProductStatus } = useSellerProducts();
@@ -24,6 +26,25 @@ const SellerProductsTab = () => {
   const [selectedProductForOffer, setSelectedProductForOffer] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const categoriesSnap = await getDocs(collection(db, 'categories'));
+        const map = new Map<string, string>();
+        categoriesSnap.forEach((doc) => {
+          const data = doc.data();
+          map.set(doc.id, data.name || '');
+        });
+        setCategoryMap(map);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleNewProduct = () => {
     setEditingProduct(null);
@@ -153,6 +174,7 @@ const SellerProductsTab = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Image</TableHead>
                     <TableHead>Nom</TableHead>
                     <TableHead>Catégorie</TableHead>
                     <TableHead>Prix de base</TableHead>
@@ -165,8 +187,15 @@ const SellerProductsTab = () => {
                 <TableBody>
                   {filteredProducts.map((product) => (
                     <TableRow key={product.id}>
+                      <TableCell>
+                        <img 
+                          src={product.image_url || "/placeholder.svg"} 
+                          alt={product.name}
+                          className="h-16 w-16 object-cover rounded-md border"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>{product.category_id || '-'}</TableCell>
+                      <TableCell>{product.category_id ? (categoryMap.get(product.category_id) || product.category_id) : '-'}</TableCell>
                       <TableCell>{product.base_price.toLocaleString()} FCFA</TableCell>
                       <TableCell>{product.unit_of_measure}</TableCell>
                       <TableCell>

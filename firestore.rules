@@ -31,7 +31,10 @@ service cloud.firestore {
     // Profiles collection
     match /profiles/{userId} {
       // Users can read their own profile
-      allow read: if isOwner(userId);
+      // Everyone can read seller profiles (for displaying seller info on products)
+      allow read: if isOwner(userId) || 
+                     (resource != null && 
+                      (resource.data.role == 'vendeur' || resource.data.role == 'seller'));
       
       // Users can create their own profile on signup
       allow create: if isOwner(userId) && 
@@ -183,6 +186,25 @@ service cloud.firestore {
                            resource.data.seller_id != null &&
                            isOwner(resource.data.seller_id)) || 
                        isAdmin();
+    }
+    
+    // Seller requests collection
+    match /seller_requests/{requestId} {
+      // Users can create their own seller request
+      allow create: if isAuthenticated() && 
+                       request.resource.data.user_id == request.auth.uid;
+      
+      // Users can read their own requests
+      // Admins can read all requests
+      allow read: if (isAuthenticated() && 
+                         resource.data.user_id == request.auth.uid) || 
+                     isAdmin();
+      
+      // Only admins can update requests (to approve/reject)
+      allow update: if isAdmin();
+      
+      // Only admins can delete requests
+      allow delete: if isAdmin();
     }
     
     // Deny all other collections

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { useSellerOffers, SellerOffer } from './hooks/useSellerOffers';
 import { useSellerProducts } from './hooks/useSellerProducts';
 import SellerOfferForm from './SellerOfferForm';
@@ -12,7 +13,11 @@ import { Plus, Eye, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LoadingState from '@/components/LoadingState';
 
-const SellerOffersTab = () => {
+interface SellerOffersTabProps {
+  initialOfferId?: string;
+}
+
+const SellerOffersTab = ({ initialOfferId }: SellerOffersTabProps) => {
   const { offers, loading, createOffer, updateOffer, toggleOfferStatus, fetchOffers } = useSellerOffers();
   const { products } = useSellerProducts();
   const { toast } = useToast();
@@ -20,6 +25,16 @@ const SellerOffersTab = () => {
   const [editingOffer, setEditingOffer] = useState<SellerOffer | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [viewingOffer, setViewingOffer] = useState<SellerOffer | null>(null);
+
+  // Open offer popup if initialOfferId is provided
+  useEffect(() => {
+    if (initialOfferId && offers.length > 0 && !viewingOffer) {
+      const offer = offers.find(o => o.id === initialOfferId);
+      if (offer) {
+        setViewingOffer(offer);
+      }
+    }
+  }, [initialOfferId, offers]);
 
   const handleNewOffer = (productId?: string) => {
     setSelectedProductId(productId || null);
@@ -96,6 +111,7 @@ const SellerOffersTab = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Image</TableHead>
                     <TableHead>Produit / Offre</TableHead>
                     <TableHead>Prix groupé</TableHead>
                     <TableHead>Participants</TableHead>
@@ -108,6 +124,13 @@ const SellerOffersTab = () => {
                 <TableBody>
                   {offers.map((offer) => (
                     <TableRow key={offer.id}>
+                      <TableCell>
+                        <img 
+                          src={offer.product_image || "/placeholder.svg"} 
+                          alt={offer.product_name || 'Produit'}
+                          className="h-16 w-16 object-cover rounded-md border"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{offer.product_name || 'Produit'}</TableCell>
                       <TableCell>{offer.group_price.toLocaleString()} FCFA</TableCell>
                       <TableCell>{offer.current_participants} / {offer.target_participants}</TableCell>
@@ -134,6 +157,10 @@ const SellerOffersTab = () => {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          <Switch
+                            checked={offer.status === 'active'}
+                            onCheckedChange={() => toggleOfferStatus(offer.id, offer.status)}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -168,36 +195,54 @@ const SellerOffersTab = () => {
 
       {viewingOffer && (
         <Dialog open={!!viewingOffer} onOpenChange={() => setViewingOffer(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-2xl font-semibold text-achatons-brown">Détails de l'offre</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold text-achatons-brown mb-2">Résumé</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Produit</p>
-                    <p className="font-medium">{viewingOffer.product_name || 'N/A'}</p>
+            <div className="space-y-6">
+              {/* Résumé amélioré */}
+              <div className="bg-gradient-to-br from-achatons-cream to-white rounded-lg p-6 border border-achatons-brown/10">
+                <h3 className="text-lg font-semibold text-achatons-brown mb-4">Résumé de l'offre</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-md p-4 border border-gray-200">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Produit</p>
+                    <p className="font-semibold text-achatons-brown text-lg">{viewingOffer.product_name || 'N/A'}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Prix groupé</p>
-                    <p className="font-medium">{viewingOffer.group_price.toLocaleString()} FCFA</p>
+                  <div className="bg-white rounded-md p-4 border border-gray-200">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Prix groupé</p>
+                    <p className="font-semibold text-achatons-orange text-lg">{viewingOffer.group_price.toLocaleString()} FCFA</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Participants</p>
-                    <p className="font-medium">{viewingOffer.current_participants} / {viewingOffer.target_participants}</p>
+                  <div className="bg-white rounded-md p-4 border border-gray-200">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Participants</p>
+                    <p className="font-semibold text-achatons-brown text-lg">
+                      {viewingOffer.current_participants} / {viewingOffer.target_participants}
+                    </p>
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-achatons-orange h-2 rounded-full transition-all"
+                          style={{ 
+                            width: `${Math.min(100, (viewingOffer.current_participants / viewingOffer.target_participants) * 100)}%` 
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Statut</p>
-                    <Badge variant={viewingOffer.status === 'active' ? 'default' : 'secondary'}>
-                      {viewingOffer.status}
+                  <div className="bg-white rounded-md p-4 border border-gray-200">
+                    <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Statut</p>
+                    <Badge 
+                      variant={viewingOffer.status === 'active' ? 'default' : 'secondary'}
+                      className="mt-1"
+                    >
+                      {viewingOffer.status === 'active' ? 'Active' : viewingOffer.status === 'completed' ? 'Terminée' : 'Inactive'}
                     </Badge>
                   </div>
                 </div>
               </div>
+
+              {/* Section Participants */}
               <div>
-                <h3 className="font-semibold text-achatons-brown mb-4">Participants</h3>
+                <h3 className="text-lg font-semibold text-achatons-brown mb-4">Gestion des participants</h3>
                 <OfferParticipantsList 
                   offerId={viewingOffer.id} 
                   onParticipationsChange={handleParticipationsChange}

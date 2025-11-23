@@ -18,13 +18,31 @@ const Footer = () => {
               Ensemble, économisons et soutenons notre économie locale.
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="text-achatons-cream hover:text-achatons-orange transition-colors">
+              <a 
+                href="https://www.facebook.com/profile.php?id=61573207362711" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-achatons-cream hover:text-achatons-orange transition-colors"
+                aria-label="Facebook Achat'ons"
+              >
                 <Facebook className="h-5 w-5" />
               </a>
-              <a href="#" className="text-achatons-cream hover:text-achatons-orange transition-colors">
+              <a 
+                href="https://www.instagram.com/achatons_achatgroupe/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-achatons-cream hover:text-achatons-orange transition-colors"
+                aria-label="Instagram Achat'ons"
+              >
                 <Instagram className="h-5 w-5" />
               </a>
-              <a href="#" className="text-achatons-cream hover:text-achatons-orange transition-colors">
+              <a 
+                href="https://www.linkedin.com/company/achatons/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-achatons-cream hover:text-achatons-orange transition-colors"
+                aria-label="LinkedIn Achat'ons"
+              >
                 <Linkedin className="h-5 w-5" />
               </a>
             </div>

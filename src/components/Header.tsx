@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, User, Settings, LogOut } from "lucide-react";
+import { Menu, X, User, Settings, LogOut, Store } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
@@ -67,6 +67,21 @@ const Header = () => {
                     <User className="h-4 w-4 mr-2" />
                     {user.email}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/user-dashboard" className="flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      Mon espace
+                    </Link>
+                  </DropdownMenuItem>
+                  {!isSeller && !isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/become-seller" className="flex items-center">
+                        <Store className="h-4 w-4 mr-2" />
+                        Devenir vendeur
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   {isAdmin && (
                     <>
@@ -158,6 +173,22 @@ const Header = () => {
                 {user ? (
                   <div className="space-y-2">
                     <p className="text-sm text-gray-600">{user.email}</p>
+                    <Link 
+                      to="/user-dashboard" 
+                      className="block text-achatons-brown hover:text-achatons-orange transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Mon espace
+                    </Link>
+                    {!isSeller && !isAdmin && (
+                      <Link 
+                        to="/become-seller" 
+                        className="block text-achatons-brown hover:text-achatons-orange transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Devenir vendeur
+                      </Link>
+                    )}
                     {isAdmin && (
                       <Link 
                         to="/admin" 

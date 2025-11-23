@@ -35,6 +35,8 @@ interface Product {
   image: string;
   supplier: string;
   unitOfMeasure?: string;
+  sellerLogo?: string | null;
+  sellerName?: string | null;
 }
 
 interface ProductDetailsModalProps {
@@ -52,11 +54,24 @@ const ProductDetailsModal = ({
 }: ProductDetailsModalProps) => {
   if (!product) return null;
 
-  const progressPercentage = (product.currentParticipants / product.targetParticipants) * 100;
+  // Safely calculate values with defaults
+  const originalPrice = product.originalPrice || 0;
+  const groupPrice = product.groupPrice || 0;
+  const currentParticipants = product.currentParticipants || 0;
+  const targetParticipants = product.targetParticipants || 1;
+  const savings = product.savings || (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice 
+    ? Math.round(((originalPrice - groupPrice) / originalPrice) * 100) 
+    : 0);
+  
+  const progressPercentage = targetParticipants > 0 
+    ? Math.min(100, Math.max(0, (currentParticipants / targetParticipants) * 100))
+    : 0;
+  
   const daysLeft = Math.ceil((new Date(product.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
+    if (!price || isNaN(price) || price <= 0) return '0 FCFA';
+    return new Intl.NumberFormat('fr-FR').format(Math.round(price)) + ' FCFA';
   };
 
   const formatDate = (dateString: string) => {
@@ -80,20 +95,23 @@ const ProductDetailsModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        aria-describedby="product-details-description"
+      >
         <DialogHeader>
           <div className="flex items-start justify-between">
             <div>
               <DialogTitle className="text-2xl text-achatons-brown mb-2">
                 {product.name}
               </DialogTitle>
-              <DialogDescription className="text-gray-600">
+              <DialogDescription id="product-details-description" className="text-gray-600">
                 Détails complets du produit
               </DialogDescription>
             </div>
             <ShareButton
               productName={product.name}
-              productPrice={formatPrice(product.groupPrice)}
+              productPrice={formatPrice(groupPrice)}
               productUrl="/products"
             />
           </div>
@@ -108,9 +126,11 @@ const ProductDetailsModal = ({
                 alt={product.name}
                 className="w-full h-64 lg:h-80 object-cover rounded-lg"
               />
-              <Badge className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 text-sm font-semibold">
-                -{product.savings}%
-              </Badge>
+              {savings > 0 && (
+                <Badge className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 text-sm font-semibold">
+                  -{savings}%
+                </Badge>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -119,6 +139,26 @@ const ProductDetailsModal = ({
                 <span className="font-medium">Fournisseur :</span>
                 <span className="ml-2 text-achatons-brown font-semibold">{product.supplier}</span>
               </div>
+
+              {product.sellerName && (
+                <div className="flex items-center text-sm text-gray-600">
+                  <div className="h-4 w-4 mr-2 flex items-center justify-center">
+                    {product.sellerLogo ? (
+                      <img 
+                        src={product.sellerLogo} 
+                        alt={product.sellerName}
+                        className="h-6 w-6 rounded-full object-cover border border-gray-300"
+                      />
+                    ) : (
+                      <div className="h-6 w-6 rounded-full bg-achatons-orange flex items-center justify-center text-white text-xs font-semibold">
+                        {product.sellerName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <span className="font-medium">Vendeur :</span>
+                  <span className="ml-2 text-achatons-brown font-semibold">{product.sellerName}</span>
+                </div>
+              )}
 
               <div className="flex items-center text-sm text-gray-600">
                 <Package className="h-4 w-4 mr-2" />
@@ -147,18 +187,22 @@ const ProductDetailsModal = ({
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <p className="text-3xl font-bold text-achatons-orange">
-                    {formatPrice(product.groupPrice)}
+                    {formatPrice(groupPrice)}
                   </p>
-                  <p className="text-sm text-gray-500 line-through">
-                    {formatPrice(product.originalPrice)}
-                  </p>
+                  {originalPrice > 0 && originalPrice > groupPrice && (
+                    <p className="text-sm text-gray-500 line-through">
+                      {formatPrice(originalPrice)}
+                    </p>
+                  )}
                 </div>
-                <div className="text-right">
-                  <div className="flex items-center text-achatons-green text-sm font-semibold">
-                    <TrendingDown className="h-4 w-4 mr-1" />
-                    <span>Économie: {formatPrice(product.originalPrice - product.groupPrice)}</span>
+                {originalPrice > groupPrice && (
+                  <div className="text-right">
+                    <div className="flex items-center text-achatons-green text-sm font-semibold">
+                      <TrendingDown className="h-4 w-4 mr-1" />
+                      <span>Économie: {formatPrice(originalPrice - groupPrice)}</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -170,7 +214,7 @@ const ProductDetailsModal = ({
                   Progression du groupe
                 </span>
                 <span className="font-semibold text-achatons-brown">
-                  {product.currentParticipants}/{product.targetParticipants} {product.unitOfMeasure || 'pièces'}
+                  {currentParticipants}/{targetParticipants} {product.unitOfMeasure || 'pièces'}
                 </span>
               </div>
               
@@ -182,7 +226,7 @@ const ProductDetailsModal = ({
               <p className="text-sm text-gray-600">
                 {progressPercentage >= 100 
                   ? "🎉 Objectif atteint ! Le groupe d'achat est complet."
-                  : `Il reste ${product.targetParticipants - product.currentParticipants} ${product.unitOfMeasure || 'pièces'} à atteindre l'objectif.`
+                  : `Il reste ${targetParticipants - currentParticipants} ${product.unitOfMeasure || 'pièces'} à atteindre l'objectif.`
                 }
               </p>
             </div>
@@ -218,9 +262,9 @@ const ProductDetailsModal = ({
                  '🚀 Rejoindre le groupe d\'achat'}
               </Button>
               
-              {daysLeft > 0 && progressPercentage < 100 && (
+              {daysLeft > 0 && progressPercentage < 100 && savings > 0 && (
                 <p className="text-center text-sm text-gray-600 mt-2">
-                  Rejoignez maintenant et économisez {product.savings}% !
+                  Rejoignez maintenant et économisez {savings}% !
                 </p>
               )}
             </div>
