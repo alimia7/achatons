@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
 import { useSellerOffers, SellerOffer } from './hooks/useSellerOffers';
 import { useSellerProducts } from './hooks/useSellerProducts';
 import SellerOfferForm from './SellerOfferForm';
 import OfferParticipantsList from './OfferParticipantsList';
-import { Plus, Eye, Edit } from 'lucide-react';
+import { OfferAnalyticsCard } from './OfferAnalyticsCard';
+import { Plus, LayoutGrid, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import LoadingState from '@/components/LoadingState';
 
@@ -18,13 +17,14 @@ interface SellerOffersTabProps {
 }
 
 const SellerOffersTab = ({ initialOfferId }: SellerOffersTabProps) => {
-  const { offers, loading, createOffer, updateOffer, toggleOfferStatus, fetchOffers } = useSellerOffers();
+  const { offers, loading, createOffer, updateOffer, toggleOfferStatus, fetchOffers, deleteOffer } = useSellerOffers();
   const { products } = useSellerProducts();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingOffer, setEditingOffer] = useState<SellerOffer | null>(null);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [viewingOffer, setViewingOffer] = useState<SellerOffer | null>(null);
+  const [offerToDelete, setOfferToDelete] = useState<SellerOffer | null>(null);
 
   // Open offer popup if initialOfferId is provided
   useEffect(() => {
@@ -55,6 +55,32 @@ const SellerOffersTab = ({ initialOfferId }: SellerOffersTabProps) => {
   const handleParticipationsChange = () => {
     // Refresh offers to update participant counts
     fetchOffers();
+  };
+
+  const handleDelete = (offer: SellerOffer) => {
+    setOfferToDelete(offer);
+  };
+
+  const confirmDelete = async () => {
+    if (!offerToDelete) return;
+
+    try {
+      await deleteOffer(offerToDelete.id);
+      toast({
+        title: "Succès",
+        description: "L'offre a été supprimée avec succès.",
+      });
+      setOfferToDelete(null);
+      if (viewingOffer?.id === offerToDelete.id) {
+        setViewingOffer(null);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message || "Une erreur s'est produite lors de la suppression.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSave = async (offerData: any) => {
@@ -101,72 +127,21 @@ const SellerOffersTab = ({ initialOfferId }: SellerOffersTabProps) => {
         <CardContent>
           {offers.length === 0 ? (
             <div className="text-center py-16 text-gray-600 border rounded-md bg-white">
-              <p>Aucune offre créée.</p>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-lg font-semibold mb-2">Aucune offre créée</p>
+              <p className="text-sm text-gray-500">
                 Créez une offre depuis l'onglet "Produits" ou cliquez sur "Nouvelle offre".
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Image</TableHead>
-                    <TableHead>Produit / Offre</TableHead>
-                    <TableHead>Prix groupé</TableHead>
-                    <TableHead>Participants</TableHead>
-                    <TableHead>Date début</TableHead>
-                    <TableHead>Date limite</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {offers.map((offer) => (
-                    <TableRow key={offer.id}>
-                      <TableCell>
-                        <img 
-                          src={offer.product_image || "/placeholder.svg"} 
-                          alt={offer.product_name || 'Produit'}
-                          className="h-16 w-16 object-cover rounded-md border"
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">{offer.product_name || 'Produit'}</TableCell>
-                      <TableCell>{offer.group_price.toLocaleString()} FCFA</TableCell>
-                      <TableCell>{offer.current_participants} / {offer.target_participants}</TableCell>
-                      <TableCell>{new Date(offer.start_date).toLocaleDateString('fr-FR')}</TableCell>
-                      <TableCell>{new Date(offer.deadline).toLocaleDateString('fr-FR')}</TableCell>
-                      <TableCell>
-                        <Badge variant={offer.status === 'active' ? 'default' : 'secondary'}>
-                          {offer.status === 'active' ? 'Active' : offer.status === 'completed' ? 'Terminée' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleView(offer)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(offer)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Switch
-                            checked={offer.status === 'active'}
-                            onCheckedChange={() => toggleOfferStatus(offer.id, offer.status)}
-                          />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {offers.map((offer) => (
+                <OfferAnalyticsCard
+                  key={offer.id}
+                  offer={offer}
+                  onViewDetails={() => handleView(offer)}
+                  onDelete={() => handleDelete(offer)}
+                />
+              ))}
             </div>
           )}
         </CardContent>
@@ -252,6 +227,38 @@ const SellerOffersTab = ({ initialOfferId }: SellerOffersTabProps) => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dialog de confirmation de suppression */}
+      <Dialog open={!!offerToDelete} onOpenChange={() => setOfferToDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Confirmer la suppression</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-700">
+              Êtes-vous sûr de vouloir supprimer l'offre <span className="font-semibold">{offerToDelete?.product_name}</span> ?
+            </p>
+            <p className="text-sm text-red-600">
+              Cette action est irréversible. Toutes les participations associées à cette offre seront également supprimées.
+            </p>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setOfferToDelete(null)}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDelete}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Supprimer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

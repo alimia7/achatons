@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, orderBy, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, deleteDoc, doc, orderBy, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -150,6 +150,16 @@ export const useSellerOffers = () => {
     await updateOffer(offerId, { current_participants: count });
   };
 
+  const deleteOffer = async (offerId: string) => {
+    if (!user?.uid) throw new Error('User not authenticated');
+
+    // Delete from Firestore
+    await deleteDoc(doc(db, 'offers', offerId));
+
+    // Update local state immediately
+    setOffers(prevOffers => prevOffers.filter(offer => offer.id !== offerId));
+  };
+
   useEffect(() => {
     fetchOffers();
   }, [user?.uid]);
@@ -162,6 +172,7 @@ export const useSellerOffers = () => {
     updateOffer,
     toggleOfferStatus,
     updateParticipantCount,
+    deleteOffer,
   };
 };
 

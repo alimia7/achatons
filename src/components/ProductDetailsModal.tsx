@@ -7,19 +7,25 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Clock, 
-  Users, 
-  TrendingDown, 
-  MapPin, 
-  Calendar,
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Clock,
+  MapPin,
   Package,
-  Star,
-  Share2
+  Lightbulb
 } from "lucide-react";
 import ShareButton from "./ShareButton";
+import { TierProgressBar } from "./tiers/TierProgressBar";
+import { NudgeMessage } from "./tiers/NudgeMessage";
+import { TierPricingDisplay } from "./tiers/TierPricingDisplay";
+import { usePriceCalculation } from "../hooks/usePriceCalculation";
+import type { PricingTier } from "../types/pricing";
 
 interface Product {
   id: number;
@@ -30,6 +36,7 @@ interface Product {
   groupPrice: number;
   savings: number;
   currentParticipants: number;
+  totalQuantity: number;
   targetParticipants: number;
   deadline: string;
   image: string;
@@ -37,6 +44,13 @@ interface Product {
   unitOfMeasure?: string;
   sellerLogo?: string | null;
   sellerName?: string | null;
+
+  // New tiered pricing fields (optional for backward compatibility)
+  pricing_model?: 'fixed' | 'tiered';
+  base_price?: number;
+  pricing_tiers?: PricingTier[];
+  current_price?: number;
+  current_tier?: number;
 }
 
 interface ProductDetailsModalProps {
@@ -46,29 +60,47 @@ interface ProductDetailsModalProps {
   onJoinGroup: () => void;
 }
 
-const ProductDetailsModal = ({ 
-  product, 
-  isOpen, 
-  onClose, 
-  onJoinGroup 
+const ProductDetailsModal = ({
+  product,
+  isOpen,
+  onClose,
+  onJoinGroup
 }: ProductDetailsModalProps) => {
   if (!product) return null;
+
+  // Check if this product uses tiered pricing
+  const hasTieredPricing = product.pricing_model === 'tiered' && product.pricing_tiers && product.pricing_tiers.length > 0;
 
   // Safely calculate values with defaults
   const originalPrice = product.originalPrice || 0;
   const groupPrice = product.groupPrice || 0;
   const currentParticipants = product.currentParticipants || 0;
+  const totalQuantity = product.totalQuantity || 0;
   const targetParticipants = product.targetParticipants || 1;
-  const savings = product.savings || (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice 
-    ? Math.round(((originalPrice - groupPrice) / originalPrice) * 100) 
+  const savings = product.savings || (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice
+    ? Math.round(((originalPrice - groupPrice) / originalPrice) * 100)
     : 0);
-  
-  const progressPercentage = targetParticipants > 0 
+
+  // Use tiered pricing calculation if available
+  const basePrice = hasTieredPricing ? (product.base_price || originalPrice) : originalPrice;
+  const pricingTiers = hasTieredPricing ? product.pricing_tiers! : [];
+
+  const { currentPrice, currentTier, nextTier, discountPercentage } = usePriceCalculation(
+    totalQuantity,
+    pricingTiers,
+    basePrice
+  );
+
+  // Use calculated current price for tiered, fallback to groupPrice for legacy
+  const displayPrice = hasTieredPricing ? currentPrice : groupPrice;
+  const displaySavings = hasTieredPricing ? discountPercentage : savings;
+
+  const progressPercentage = targetParticipants > 0
     ? Math.min(100, Math.max(0, (currentParticipants / targetParticipants) * 100))
     : 0;
-  
+
   const daysLeft = Math.ceil((new Date(product.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-  
+
   const formatPrice = (price: number) => {
     if (!price || isNaN(price) || price <= 0) return '0 FCFA';
     return new Intl.NumberFormat('fr-FR').format(Math.round(price)) + ' FCFA';
@@ -87,7 +119,7 @@ const ProductDetailsModal = ({
     const deadline = new Date(dateString);
     const diffTime = deadline.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays <= 0) return "Expiré";
     if (diffDays === 1) return "1 jour";
     return `${diffDays} jours`;
@@ -126,9 +158,9 @@ const ProductDetailsModal = ({
                 alt={product.name}
                 className="w-full h-64 lg:h-80 object-cover rounded-lg"
               />
-              {savings > 0 && (
+              {displaySavings > 0 && (
                 <Badge className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 text-sm font-semibold">
-                  -{savings}%
+                  -{Math.round(displaySavings)}%
                 </Badge>
               )}
             </div>
@@ -183,52 +215,74 @@ const ProductDetailsModal = ({
             </div>
 
             {/* Prix et économies */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="text-3xl font-bold text-achatons-orange">
-                    {formatPrice(groupPrice)}
-                  </p>
-                  {originalPrice > 0 && originalPrice > groupPrice && (
-                    <p className="text-sm text-gray-500 line-through">
-                      {formatPrice(originalPrice)}
-                    </p>
-                  )}
-                </div>
-                {originalPrice > groupPrice && (
-                  <div className="text-right">
-                    <div className="flex items-center text-achatons-green text-sm font-semibold">
-                      <TrendingDown className="h-4 w-4 mr-1" />
-                      <span>Économie: {formatPrice(originalPrice - groupPrice)}</span>
+            <div>
+              {hasTieredPricing ? (
+                <TierPricingDisplay
+                  currentPrice={displayPrice}
+                  basePrice={basePrice}
+                  currentTier={currentTier}
+                  tiers={pricingTiers}
+                  showAllTiers
+                />
+              ) : (
+                <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                  <div className="flex justify-between items-baseline">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-achatons-orange">
+                        {formatPrice(displayPrice)}
+                      </span>
+                      {displaySavings > 0 && (
+                        <Badge className="bg-achatons-green text-white">
+                          -{Math.round(displaySavings)}%
+                        </Badge>
+                      )}
                     </div>
+                    <span className="text-sm text-gray-500 line-through">
+                      {formatPrice(basePrice)}
+                    </span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Progression */}
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="flex items-center text-gray-700 font-medium">
-                  <Users className="h-4 w-4 mr-2" />
-                  Progression du groupe
-                </span>
-                <span className="font-semibold text-achatons-brown">
-                  {currentParticipants}/{targetParticipants} {product.unitOfMeasure || 'pièces'}
-                </span>
-              </div>
-              
-              <Progress 
-                value={progressPercentage} 
-                className="h-3"
-              />
-              
-              <p className="text-sm text-gray-600">
-                {progressPercentage >= 100 
-                  ? "🎉 Objectif atteint ! Le groupe d'achat est complet."
-                  : `Il reste ${targetParticipants - currentParticipants} ${product.unitOfMeasure || 'pièces'} à atteindre l'objectif.`
-                }
-              </p>
+              {hasTieredPricing ? (
+                <>
+                  <TierProgressBar
+                    tiers={pricingTiers}
+                    currentQuantity={totalQuantity}
+                    currentTier={currentTier}
+                    basePrice={basePrice}
+                    animated
+                    showLabels
+                  />
+
+                  {nextTier && (
+                    <NudgeMessage
+                      currentQuantity={totalQuantity}
+                      currentTier={currentTier}
+                      nextTier={nextTier}
+                      currentPrice={displayPrice}
+                      deadline={product.deadline}
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">
+                      {currentParticipants}/{targetParticipants} participants
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {progressPercentage >= 100
+                      ? "Objectif atteint ! Le groupe d'achat est complet."
+                      : `Il reste ${targetParticipants - currentParticipants} ${product.unitOfMeasure || 'pièces'} à atteindre l'objectif.`
+                    }
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Date limite */}
@@ -262,12 +316,69 @@ const ProductDetailsModal = ({
                  '🚀 Rejoindre le groupe d\'achat'}
               </Button>
               
-              {daysLeft > 0 && progressPercentage < 100 && savings > 0 && (
+              {daysLeft > 0 && progressPercentage < 100 && displaySavings > 0 && (
                 <p className="text-center text-sm text-gray-600 mt-2">
-                  Rejoignez maintenant et économisez {savings}% !
+                  Rejoignez maintenant et économisez {Math.round(displaySavings)}% !
                 </p>
               )}
             </div>
+
+            {/* Section explicative pour les paliers */}
+            {hasTieredPricing && (
+              <Accordion type="single" collapsible className="mt-6">
+                <AccordionItem value="how-it-works">
+                  <AccordionTrigger className="text-achatons-brown">
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4" />
+                      <span>Comment fonctionne l'achat groupé ?</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <ol className="list-decimal list-inside space-y-2">
+                        <li>Rejoignez le groupe au prix actuel</li>
+                        <li>Plus il y a de participants, plus le prix baisse pour tout le monde</li>
+                        <li>Invitez vos amis pour débloquer les paliers suivants</li>
+                        <li>À la date de fin, tout le monde paie le prix final atteint</li>
+                      </ol>
+
+                      <div className="mt-4 p-4 bg-achatons-cream rounded-lg border border-achatons-orange/20">
+                        <p className="font-semibold mb-2 text-achatons-brown">Tableau des paliers :</p>
+                        <div className="space-y-2">
+                          {pricingTiers.map((tier, index) => (
+                            <div
+                              key={tier.tier_number}
+                              className={`flex justify-between items-center p-2 rounded ${
+                                tier.tier_number <= currentTier
+                                  ? 'bg-achatons-green/10 border border-achatons-green/30'
+                                  : 'bg-white border border-gray-200'
+                              }`}
+                            >
+                              <span className="font-medium">
+                                {tier.tier_number <= currentTier && '✅ '}
+                                Palier {tier.tier_number} ({tier.min_participants} personnes)
+                              </span>
+                              <div className="text-right">
+                                <span className={`font-bold ${
+                                  tier.tier_number <= currentTier
+                                    ? 'text-achatons-green'
+                                    : 'text-gray-700'
+                                }`}>
+                                  {formatPrice(tier.price)}
+                                </span>
+                                <span className="text-xs text-gray-500 ml-2">
+                                  (-{tier.discount_percentage.toFixed(1)}%)
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            )}
           </div>
         </div>
       </DialogContent>

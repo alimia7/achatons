@@ -6,13 +6,14 @@ import ContactModal from "@/components/ContactModal";
 import ProductFilters from "@/components/ProductFilters";
 import ProductGrid from "@/components/ProductGrid";
 import EmptyState from "@/components/EmptyState";
-import LoadingState from "@/components/LoadingState";
+import { ProductSkeletonGrid } from "@/components/ProductSkeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, getDoc, doc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Search, X } from "lucide-react";
+import { useOffers } from "@/hooks/useOffers";
+import { Search, X, Flame } from "lucide-react";
 
 interface DatabaseProduct {
   id: string;
@@ -51,6 +52,13 @@ interface Product {
   unitOfMeasure?: string;
   sellerLogo?: string | null;
   sellerName?: string | null;
+
+  // Tiered pricing fields
+  pricing_model?: 'fixed' | 'tiered';
+  base_price?: number;
+  pricing_tiers?: any[];
+  current_price?: number;
+  current_tier?: number;
 }
 
 interface Category {
@@ -61,15 +69,15 @@ interface Category {
 const ProductList = () => {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  // Use React Query hook for offers with caching
+  const { offers: products, isLoading: loading, refetch } = useOffers();
+
   useEffect(() => {
-    fetchProducts();
     fetchCategories();
   }, []);
 
@@ -83,137 +91,6 @@ const ProductList = () => {
       setCategories(list);
     } catch (error) {
       console.error('Error fetching categories:', error);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      console.log('Fetching products...');
-      // Filter offers by status 'active' to match Firestore rules
-      const offersQuery = query(
-        collection(db, 'offers'),
-        where('status', '==', 'active')
-      );
-      const [offersSnap, categoriesSnap] = await Promise.all([
-        getDocs(offersQuery),
-        getDocs(collection(db, 'categories')),
-      ]);
-      const categoryMap = new Map<string, string>();
-      categoriesSnap.forEach((d) => {
-        const data = d.data() as any;
-        categoryMap.set(d.id, data.name || '');
-      });
-      
-      // Transform offers to products, handling both direct offers and product_id references
-      const transformedProducts: Product[] = [];
-      
-      for (const docSnap of offersSnap.docs) {
-        const dbOffer = docSnap.data() as any;
-        
-        // Skip offers that haven't started yet (start_date in the future)
-        if (dbOffer.start_date) {
-          const startDate = new Date(dbOffer.start_date);
-          const now = new Date();
-          // If start_date is in the future, skip this offer
-          if (startDate > now) {
-            continue;
-          }
-        }
-        
-        // Check if this offer references a product (seller offers)
-        let productData = dbOffer;
-        if (dbOffer.product_id) {
-          try {
-            // Fetch the referenced product
-            const productDoc = await getDoc(doc(db, 'products', dbOffer.product_id));
-            if (productDoc.exists()) {
-              const productInfo = productDoc.data();
-              // Merge offer data with product data
-              productData = {
-                ...productInfo,
-                // Override with offer-specific data
-                group_price: dbOffer.group_price,
-                target_participants: dbOffer.target_participants,
-                deadline: dbOffer.deadline,
-                current_participants: dbOffer.current_participants || 0,
-                // Use product's original_price (base_price) or offer's original_price
-                original_price: dbOffer.original_price || productInfo.base_price || productInfo.original_price,
-                // Preserve category_id from product (or offer if not in product)
-                category_id: productInfo.category_id || dbOffer.category_id,
-              };
-            }
-          } catch (error) {
-            console.error(`Error fetching product ${dbOffer.product_id}:`, error);
-            // Continue with offer data only if product fetch fails
-          }
-        }
-        
-        // Fetch seller information if seller_id exists
-        let sellerLogo = null;
-        let sellerName = null;
-        if (dbOffer.seller_id) {
-          try {
-            const sellerProfileDoc = await getDoc(doc(db, 'profiles', dbOffer.seller_id));
-            if (sellerProfileDoc.exists()) {
-              const sellerData = sellerProfileDoc.data();
-              sellerLogo = sellerData.logo_url || null;
-              sellerName = sellerData.company_name || sellerData.responsible_name || null;
-            }
-          } catch (error) {
-            console.error(`Error fetching seller profile ${dbOffer.seller_id}:`, error);
-          }
-        }
-        
-        // Ensure we have required fields with defaults
-        const originalPrice = productData.original_price || productData.base_price || 0;
-        const groupPrice = productData.group_price || 0;
-        const targetParticipants = productData.target_participants || 0;
-        const currentParticipants = productData.current_participants || 0;
-        
-        // Calculate savings safely
-        let savings = 0;
-        if (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice) {
-          savings = Math.round(((originalPrice - groupPrice) / originalPrice) * 100);
-        }
-        
-        const numericId = parseInt(
-          [...docSnap.id]
-            .map((c) => c.charCodeAt(0).toString(16))
-            .join('')
-            .substring(0, 8),
-          16
-        );
-        
-        transformedProducts.push({
-          id: numericId,
-          originalId: docSnap.id,
-          name: productData.name || 'Produit sans nom',
-          description: productData.description || '',
-          originalPrice: originalPrice,
-          groupPrice: groupPrice,
-          savings: savings,
-          currentParticipants: currentParticipants,
-          targetParticipants: targetParticipants,
-          deadline: productData.deadline || new Date().toISOString(),
-          image: productData.image_url || productData.image || "/placeholder.svg",
-          supplier: productData.supplier || 'Fournisseur non spécifié',
-          category: productData.category_id ? (categoryMap.get(productData.category_id) || productData.category_id) : undefined,
-          unitOfMeasure: productData.unit_of_measure || 'pièces',
-          sellerLogo: sellerLogo,
-          sellerName: sellerName
-        } as Product);
-      }
-
-      setProducts(transformedProducts);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les offres.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -231,9 +108,20 @@ const ProductList = () => {
   };
 
   const handleParticipationSuccess = () => {
-    // Refresh products to show updated participant counts
-    fetchProducts();
+    // Refetch offers to show updated participant counts and tier progress
+    refetch();
   };
+
+  // Calculate hot offers (close to next tier)
+  const hotOffers = products.filter(product => {
+    if (product.pricing_model !== 'tiered' || !product.pricing_tiers) return false;
+    const nextTier = product.pricing_tiers.find(
+      t => t.tier_number === (product.current_tier || 0) + 1
+    );
+    if (!nextTier) return false;
+    const remaining = nextTier.min_participants - (product.totalQuantity || 0);
+    return remaining <= 5 && remaining > 0; // Close to next tier
+  });
 
   const filteredProducts = products.filter(product => {
     // Filter by category
@@ -260,7 +148,23 @@ const ProductList = () => {
   });
 
   if (loading) {
-    return <LoadingState />;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-achatons-cream to-white">
+        <Header />
+        <main className="container mx-auto px-4 py-12">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl md:text-5xl font-bold text-achatons-brown mb-4">
+              Offres du moment
+            </h1>
+            <p className="text-xl text-gray-700 max-w-3xl mx-auto mb-8">
+              Chargement des offres...
+            </p>
+          </div>
+          <ProductSkeletonGrid count={6} />
+        </main>
+        <Footer />
+      </div>
+    );
   }
 
   return (
@@ -318,13 +222,39 @@ const ProductList = () => {
           )}
         </div>
 
-        {filteredProducts.length === 0 ? (
+        {loading ? (
+          <ProductSkeletonGrid count={6} />
+        ) : filteredProducts.length === 0 ? (
           <EmptyState selectedCategory={selectedCategory} searchTerm={searchTerm} />
         ) : (
-          <ProductGrid
-            products={filteredProducts}
-            onJoinGroup={handleJoinGroup}
-          />
+          <>
+            {/* Hot Offers Section */}
+            {hotOffers.length > 0 && !searchTerm && selectedCategory === 'all' && (
+              <section className="mb-12">
+                <div className="text-center mb-6">
+                  <h2 className="text-3xl font-bold text-achatons-brown mb-2 flex items-center justify-center gap-2">
+                    <Flame className="h-8 w-8 text-orange-500 animate-pulse" />
+                    Offres chaudes
+                    <Flame className="h-8 w-8 text-orange-500 animate-pulse" />
+                  </h2>
+                  <p className="text-gray-600">
+                    Ces offres sont proches du palier suivant ! Rejoignez maintenant pour débloquer de meilleurs prix.
+                  </p>
+                </div>
+                <ProductGrid
+                  products={hotOffers}
+                  onJoinGroup={handleJoinGroup}
+                />
+                <div className="mt-8 border-t border-gray-200" />
+              </section>
+            )}
+
+            {/* All Offers */}
+            <ProductGrid
+              products={filteredProducts}
+              onJoinGroup={handleJoinGroup}
+            />
+          </>
         )}
       </main>
 

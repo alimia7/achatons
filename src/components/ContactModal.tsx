@@ -12,10 +12,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { db } from "@/lib/firebase";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, getDoc, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Phone, Mail, MapPin, Facebook, Instagram, Linkedin, Clock } from "lucide-react";
+import { updateOfferAfterParticipation } from "@/lib/offerUpdates";
+import { Phone, Mail, MapPin, Facebook, Instagram, Linkedin, Clock, PartyPopper } from "lucide-react";
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -64,10 +65,48 @@ const ContactModal = ({ isOpen, onClose, productId, onSuccess }: ContactModalPro
       
       await addDoc(collection(db, 'participations'), participationData);
 
-      toast({
-        title: "Demande enregistrée!",
-        description: "Votre demande de participation a été enregistrée et sera examinée par notre équipe.",
-      });
+      // Check tier before and after update to detect if new tier unlocked
+      let tierUnlocked = false;
+      let newTierNumber = 0;
+      let newPrice = 0;
+
+      try {
+        // Get offer before update
+        const offerBefore = await getDoc(doc(db, 'offers', productId));
+        const tierBefore = offerBefore.data()?.current_tier || 0;
+
+        // Update the offer
+        await updateOfferAfterParticipation(productId, parseInt(formData.quantity));
+
+        // Get offer after update
+        const offerAfter = await getDoc(doc(db, 'offers', productId));
+        const tierAfter = offerAfter.data()?.current_tier || 0;
+        const priceAfter = offerAfter.data()?.current_price || 0;
+
+        // Check if new tier was unlocked
+        if (tierAfter > tierBefore) {
+          tierUnlocked = true;
+          newTierNumber = tierAfter;
+          newPrice = priceAfter;
+        }
+      } catch (updateError) {
+        console.error('Error updating offer:', updateError);
+      }
+
+      // Show celebration toast if tier unlocked
+      if (tierUnlocked) {
+        toast({
+          title: `🎉 Nouveau palier débloqué !`,
+          description: `Félicitations ! Vous venez de débloquer le Palier ${newTierNumber}. Le prix vient de baisser à ${new Intl.NumberFormat('fr-FR').format(newPrice)} FCFA pour tout le monde !`,
+          duration: 7000,
+          className: "bg-achatons-green text-white border-achatons-green",
+        });
+      } else {
+        toast({
+          title: "Demande enregistrée!",
+          description: "Votre demande de participation a été enregistrée et sera examinée par notre équipe.",
+        });
+      }
 
       // Afficher le message de confirmation
       setShowConfirmation(true);

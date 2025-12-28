@@ -1,11 +1,16 @@
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Clock, Users, TrendingDown, MapPin, Eye } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Clock, MapPin, Eye, Medal, TrendingUp } from "lucide-react";
 import ShareButton from "./ShareButton";
 import ProductDetailsModal from "./ProductDetailsModal";
 import { useState } from "react";
+import { TierProgressBar } from "./tiers/TierProgressBar";
+import { NudgeMessage } from "./tiers/NudgeMessage";
+import { TierPricingDisplay } from "./tiers/TierPricingDisplay";
+import { usePriceCalculation } from "../hooks/usePriceCalculation";
+import type { PricingTier } from "../types/pricing";
 
 interface Product {
   id: number;
@@ -16,6 +21,7 @@ interface Product {
   groupPrice: number;
   savings: number;
   currentParticipants: number;
+  totalQuantity: number;
   targetParticipants: number;
   deadline: string;
   image: string;
@@ -23,6 +29,13 @@ interface Product {
   unitOfMeasure?: string;
   sellerLogo?: string | null;
   sellerName?: string | null;
+
+  // New tiered pricing fields (optional for backward compatibility)
+  pricing_model?: 'fixed' | 'tiered';
+  base_price?: number;
+  pricing_tiers?: PricingTier[];
+  current_price?: number;
+  current_tier?: number;
 }
 
 interface ProductCardProps {
@@ -32,22 +45,40 @@ interface ProductCardProps {
 
 const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
+  // Check if this product uses tiered pricing
+  const hasTieredPricing = product.pricing_model === 'tiered' && product.pricing_tiers && product.pricing_tiers.length > 0;
+
   // Safely calculate values with defaults
   const originalPrice = product.originalPrice || 0;
   const groupPrice = product.groupPrice || 0;
   const currentParticipants = product.currentParticipants || 0;
   const targetParticipants = product.targetParticipants || 1;
-  const savings = product.savings || (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice 
-    ? Math.round(((originalPrice - groupPrice) / originalPrice) * 100) 
+  const savings = product.savings || (originalPrice > 0 && groupPrice > 0 && originalPrice > groupPrice
+    ? Math.round(((originalPrice - groupPrice) / originalPrice) * 100)
     : 0);
-  
-  const progressPercentage = targetParticipants > 0 
+
+  // Use tiered pricing calculation if available
+  const basePrice = hasTieredPricing ? (product.base_price || originalPrice) : originalPrice;
+  const pricingTiers = hasTieredPricing ? product.pricing_tiers! : [];
+  const totalQuantity = product.totalQuantity || 0;
+
+  const { currentPrice, currentTier, nextTier, discountPercentage } = usePriceCalculation(
+    totalQuantity,
+    pricingTiers,
+    basePrice
+  );
+
+  // Use calculated current price for tiered, fallback to groupPrice for legacy
+  const displayPrice = hasTieredPricing ? currentPrice : groupPrice;
+  const displaySavings = hasTieredPricing ? discountPercentage : savings;
+
+  const progressPercentage = targetParticipants > 0
     ? Math.min(100, Math.max(0, (currentParticipants / targetParticipants) * 100))
     : 0;
-  
+
   const daysLeft = Math.ceil((new Date(product.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-  
+
   const formatPrice = (price: number) => {
     if (!price || isNaN(price) || price <= 0) return '0 FCFA';
     return new Intl.NumberFormat('fr-FR').format(Math.round(price)) + ' FCFA';
@@ -62,26 +93,47 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
 
   return (
     <>
-      <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 bg-white border-2 hover:border-achatons-orange cursor-pointer" onClick={() => setIsModalOpen(true)}>
-        <div className="relative">
-          <img 
-            src={product.image} 
+      <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 hover:scale-[1.02] bg-white border-2 hover:border-achatons-orange cursor-pointer group" onClick={() => setIsModalOpen(true)}>
+        <div className="relative overflow-hidden">
+          <img
+            src={product.image}
             alt={product.name}
-            className="w-full h-48 object-cover"
+            className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
           />
-          {savings > 0 && (
-            <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-sm font-semibold">
-              -{savings}%
+
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          {/* Tier Badge (top left) */}
+          {hasTieredPricing && currentTier > 0 && (
+            <Badge className={`absolute top-3 left-3 ${
+              currentTier === 1 ? 'bg-orange-500' :
+              currentTier === 2 ? 'bg-gray-400' :
+              'bg-yellow-500'
+            } text-white px-3 py-1 flex items-center gap-1 shadow-lg animate-pulse`}>
+              <Medal className="h-3 w-3" />
+              <span className="font-bold">Palier {currentTier}</span>
+            </Badge>
+          )}
+
+          {/* Discount Badge (top right) */}
+          {displaySavings > 0 && (
+            <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
+              -{Math.round(displaySavings)}%
             </div>
           )}
-          <div className="absolute top-3 left-3" onClick={(e) => e.stopPropagation()}>
+
+          {/* Share Button (moved to bottom left) */}
+          <div className="absolute bottom-3 left-3" onClick={(e) => e.stopPropagation()}>
             <ShareButton
               productName={product.name}
-              productPrice={formatPrice(groupPrice)}
+              productPrice={formatPrice(displayPrice)}
               productUrl="/products"
             />
           </div>
-          <div className="absolute bottom-3 right-3 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 transition-colors">
+
+          {/* View Icon (bottom right) */}
+          <div className="absolute bottom-3 right-3 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 transition-colors shadow-lg group-hover:scale-110">
             <Eye className="h-4 w-4" />
           </div>
         </div>
@@ -101,43 +153,62 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
         </div>
 
         <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-2xl font-bold text-achatons-orange">
-                {formatPrice(groupPrice)}
-              </p>
-              {originalPrice > 0 && originalPrice > groupPrice && (
-                <p className="text-sm text-gray-500 line-through">
-                  {formatPrice(originalPrice)}
-                </p>
-              )}
-            </div>
-            {originalPrice > groupPrice && (
-              <div className="text-right">
-                <div className="flex items-center text-achatons-green text-sm font-semibold">
-                  <TrendingDown className="h-4 w-4 mr-1" />
-                  <span>Économie: {formatPrice(originalPrice - groupPrice)}</span>
-                </div>
+          {/* Pricing Display - Use TierPricingDisplay for tiered products */}
+          {hasTieredPricing ? (
+            <TierPricingDisplay
+              currentPrice={displayPrice}
+              basePrice={basePrice}
+              currentTier={currentTier}
+              tiers={pricingTiers}
+              compact
+            />
+          ) : (
+            <div className="flex justify-between items-baseline">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-achatons-orange">
+                  {formatPrice(displayPrice)}
+                </span>
+                {displaySavings > 0 && (
+                  <span className="text-sm bg-achatons-green text-white px-2 py-0.5 rounded">
+                    -{Math.round(displaySavings)}%
+                  </span>
+                )}
               </div>
-            )}
-          </div>
+              <span className="text-sm text-gray-500 line-through">
+                {formatPrice(basePrice)}
+              </span>
+            </div>
+          )}
 
           <div className="space-y-2">
-            <div className="flex justify-between items-center text-sm">
-              <span className="flex items-center text-gray-600">
-                <Users className="h-4 w-4 mr-1" />
-                Participants
-              </span>
-              <span className="font-semibold text-achatons-brown">
-                {currentParticipants}/{targetParticipants} {product.unitOfMeasure || 'pièces'}
-              </span>
-            </div>
-            
-            <Progress 
-              value={progressPercentage} 
-              className="h-2"
-            />
-            
+            {/* Progress Bar - Use TierProgressBar for tiered products */}
+            {hasTieredPricing ? (
+              <TierProgressBar
+                tiers={pricingTiers}
+                currentQuantity={totalQuantity}
+                currentTier={currentTier}
+                basePrice={basePrice}
+                animated
+                compact
+              />
+            ) : (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">{currentParticipants}/{targetParticipants} participants</span>
+              </div>
+            )}
+
+            {/* Nudge Message for tiered products */}
+            {hasTieredPricing && nextTier && (
+              <NudgeMessage
+                currentQuantity={totalQuantity}
+                currentTier={currentTier}
+                nextTier={nextTier}
+                currentPrice={displayPrice}
+                deadline={product.deadline}
+                compact
+              />
+            )}
+
             <div className="flex justify-between items-center text-sm">
               <span className="flex items-center text-gray-600">
                 <Clock className="h-4 w-4 mr-1" />

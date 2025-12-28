@@ -84,3 +84,4 @@ Puis remplissez les valeurs dans `.env.local`.
 
 **Note** : Le fichier `.env.local` est ignoré par Git (déjà dans `.gitignore`) pour des raisons de sécurité.
 
+
