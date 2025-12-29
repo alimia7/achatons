@@ -22,13 +22,48 @@ export function ShareModal({ offer, onClose }: ShareModalProps) {
     t => t.tier_number === offer.current_tier + 1
   );
 
-  const shareMessage = `🛒 Rejoins-moi sur Achat'ons !
+  // Calculer l'économie réalisée
+  const savings = offer.base_price - offer.current_price;
+  const savingsPercent = Math.round((savings / offer.base_price) * 100);
 
-J'ai trouvé "${offer.name}" à seulement ${formatPrice(offer.current_price)} au lieu de ${formatPrice(offer.base_price)} !
+  // Calculer combien de personnes/unités manquent pour le prochain palier
+  const remainingForNextTier = nextTier
+    ? nextTier.min_participants - (offer.total_quantity || offer.current_participants)
+    : 0;
 
-${nextTier ? `Plus on est nombreux, moins c'est cher ! Encore ${nextTier.min_participants - offer.current_participants} personnes pour débloquer ${formatPrice(nextTier.price)} 💰` : 'Prix final atteint ! 🎉'}
+  // Message personnalisé avec un ton chaleureux et incitatif
+  const shareMessage = nextTier
+    ? `🔥 Hey ! Rejoins-moi vite sur Achat'ons !
 
-👉 Rejoins le groupe ici : ${shareUrl}`;
+Je viens de rejoindre un groupe d'achat pour "${offer.name}" et on est déjà ${offer.current_participants || 0} personnes !
+
+💰 Prix actuel : ${formatPrice(offer.current_price)} au lieu de ${formatPrice(offer.base_price)}
+Tu économises déjà ${formatPrice(savings)} (${savingsPercent}%) !
+
+🚀 Mais attends, ça peut être ENCORE MIEUX !
+
+Si on arrive à ${nextTier.min_participants} unités (il manque juste ${remainingForNextTier} unités), le prix descend à ${formatPrice(nextTier.price)} pour TOUT LE MONDE !
+
+💎 Ça fait ${formatPrice(offer.current_price - nextTier.price)} d'économie supplémentaire !
+
+Plus on est nombreux, moins on paie ! Alors rejoins-nous maintenant 👇
+${shareUrl}
+
+#AchatGroupé #BonPlan #EnsembleOnÉconomise`
+    : `🎉 Incroyable ! Rejoins-moi sur Achat'ons !
+
+On a atteint le meilleur prix pour "${offer.name}" grâce à notre groupe d'achat !
+
+💰 ${formatPrice(offer.current_price)} au lieu de ${formatPrice(offer.base_price)}
+🎯 ${formatPrice(savings)} d'économie (${savingsPercent}%) !
+
+On est déjà ${offer.current_participants || 0} personnes à profiter de ce super prix. Rejoins-nous avant que l'offre se termine !
+
+👇 Clique ici pour en profiter aussi
+${shareUrl}
+
+#AchatGroupé #MeilleurPrix #BonPlan`;
+
 
   const handleWhatsAppShare = () => {
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
@@ -65,22 +100,36 @@ ${nextTier ? `Plus on est nombreux, moins c'est cher ! Encore ${nextTier.min_par
           <div className="text-center py-4">
             <div className="text-6xl mb-2">🎉</div>
             <p className="text-lg font-semibold text-achatons-brown mb-2">
-              Merci d'avoir rejoint le groupe !
+              Super ! Votre demande a été enregistrée !
             </p>
             <p className="text-sm text-gray-600">
-              Invitez vos amis pour débloquer le prochain palier et économiser encore plus !
+              {nextTier
+                ? `Partagez avec vos amis pour qu'ensemble on atteigne le palier suivant et qu'on profite tous d'un meilleur prix !`
+                : `Partagez cette super offre avec vos amis pour qu'ils en profitent aussi !`
+              }
             </p>
           </div>
 
           {/* Info du prochain palier */}
           {nextTier && (
-            <div className="bg-orange-50 border border-achatons-orange rounded-lg p-4">
+            <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-achatons-orange rounded-lg p-4">
               <div className="text-center">
-                <div className="text-sm text-gray-700 mb-1">
-                  Plus que {nextTier.min_participants - offer.current_participants} personnes pour débloquer
+                <div className="text-sm font-semibold text-achatons-brown mb-2">
+                  🎯 Objectif : Atteindre ensemble {nextTier.min_participants} unités !
                 </div>
-                <div className="text-2xl font-bold text-achatons-orange">
-                  {formatPrice(nextTier.price)}
+                <div className="text-xs text-gray-600 mb-2">
+                  Il manque seulement {remainingForNextTier} unité{remainingForNextTier > 1 ? 's' : ''}
+                </div>
+                <div className="bg-white rounded-lg p-3 mb-2">
+                  <div className="text-2xl font-bold text-achatons-orange">
+                    {formatPrice(nextTier.price)}
+                  </div>
+                  <div className="text-xs text-green-600 font-semibold mt-1">
+                    -{formatPrice(offer.current_price - nextTier.price)} pour tous !
+                  </div>
+                </div>
+                <div className="text-xs font-semibold text-achatons-brown">
+                  Plus on est nombreux, moins on paie ! 💪
                 </div>
               </div>
             </div>

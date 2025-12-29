@@ -1,4 +1,4 @@
-import { doc, runTransaction, getDoc } from 'firebase/firestore';
+import { doc, runTransaction, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
 import type { OfferWithTiers, PricingTier, TierMilestone } from '../types/pricing';
 
@@ -112,6 +112,100 @@ export async function updateOfferAfterParticipation(
 
     transaction.update(offerRef, updates);
   });
+}
+
+/**
+ * Recalcule toutes les statistiques d'une offre basées uniquement sur les participations validées
+ * Cette fonction doit être appelée lors de la validation ou de l'annulation de participations
+ */
+export async function recalculateOfferStats(offerId: string): Promise<{ tierUnlocked: boolean; newTierNumber: number; newPrice: number }> {
+  const offerRef = doc(db, 'offers', offerId);
+
+  let tierUnlocked = false;
+  let newTierNumber = 0;
+  let newPrice = 0;
+
+  await runTransaction(db, async (transaction) => {
+    const offerDoc = await transaction.get(offerRef);
+
+    if (!offerDoc.exists()) {
+      throw new Error('Offre introuvable');
+    }
+
+    const offer = offerDoc.data() as any;
+
+    // Récupérer toutes les participations validées pour cette offre
+    const participationsQuery = query(
+      collection(db, 'participations'),
+      where('offer_id', '==', offerId),
+      where('status', '==', 'validated')
+    );
+    const participationsSnap = await getDocs(participationsQuery);
+
+    // Calculer le nombre total de participants et la quantité totale
+    let totalParticipants = 0;
+    let totalQuantity = 0;
+    participationsSnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      totalParticipants += 1;
+      totalQuantity += data.quantity || 0;
+    });
+
+    // Calculer le nouveau palier et prix
+    const hasTieredPricing = offer.pricing_model === 'tiered' && offer.pricing_tiers && offer.pricing_tiers.length > 0;
+
+    let updates: any = {
+      current_participants: totalParticipants,
+      total_quantity: totalQuantity,
+      updated_at: new Date().toISOString()
+    };
+
+    if (hasTieredPricing) {
+      const previousTier = offer.current_tier || 0;
+
+      // Les paliers se basent sur la quantité totale, pas le nombre de participants
+      const { currentTier, currentPrice, nextTierQuantity } = calculateCurrentTierAndPrice(
+        totalQuantity,
+        offer.pricing_tiers,
+        offer.base_price || offer.original_price
+      );
+
+      tierUnlocked = currentTier > previousTier;
+      newTierNumber = currentTier;
+      newPrice = currentPrice;
+
+      updates.current_tier = currentTier;
+      updates.current_price = currentPrice;
+      updates.next_tier_quantity = nextTierQuantity;
+
+      // Calculer le revenu total basé sur les participations validées
+      let totalRevenue = 0;
+      participationsSnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const quantity = data.quantity || 0;
+        // Le prix actuel est appliqué à toutes les participations validées
+        totalRevenue += currentPrice * quantity;
+      });
+      updates.total_revenue = totalRevenue;
+
+      // Si un nouveau palier a été débloqué, ajouter un milestone
+      if (tierUnlocked) {
+        const milestone: TierMilestone = {
+          tier_number: currentTier,
+          reached_at: new Date().toISOString(),
+          participants_count: totalParticipants,
+          price_at_unlock: currentPrice
+        };
+
+        const existingHistory = offer.tier_history || [];
+        updates.tier_history = [...existingHistory, milestone];
+      }
+    }
+
+    transaction.update(offerRef, updates);
+  });
+
+  return { tierUnlocked, newTierNumber, newPrice };
 }
 
 /**

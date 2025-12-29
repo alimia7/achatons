@@ -143,8 +143,17 @@ const ProductDetailsModal = ({
             </div>
             <ShareButton
               productName={product.name}
-              productPrice={formatPrice(groupPrice)}
+              productPrice={formatPrice(displayPrice)}
               productUrl="/products"
+              offer={hasTieredPricing ? {
+                name: product.name,
+                base_price: basePrice,
+                current_price: displayPrice,
+                current_participants: currentParticipants,
+                total_quantity: totalQuantity,
+                current_tier: currentTier,
+                pricing_tiers: pricingTiers
+              } : undefined}
             />
           </div>
         </DialogHeader>

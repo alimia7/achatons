@@ -9,18 +9,83 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import type { PricingTier } from "@/types/pricing";
+
+interface OfferData {
+  name: string;
+  base_price: number;
+  current_price: number;
+  current_participants?: number;
+  total_quantity?: number;
+  current_tier?: number;
+  pricing_tiers?: PricingTier[];
+}
 
 interface ShareButtonProps {
   productName: string;
   productPrice: string;
   productUrl: string;
+  offer?: OfferData; // Optionnel pour rétrocompatibilité
 }
 
-const ShareButton = ({ productName, productPrice, productUrl }: ShareButtonProps) => {
+const ShareButton = ({ productName, productPrice, productUrl, offer }: ShareButtonProps) => {
   const { toast } = useToast();
-  
-  const shareText = `Découvrez cette offre d'achat groupé: ${productName} à ${productPrice} sur Achat'ons!`;
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
+  };
+
   const fullUrl = `${window.location.origin}${productUrl}`;
+
+  // Si on a l'offre complète, on génère un message personnalisé
+  let shareText = '';
+  if (offer) {
+    const savings = offer.base_price - offer.current_price;
+    const savingsPercent = Math.round((savings / offer.base_price) * 100);
+
+    const nextTier = offer.pricing_tiers?.find(
+      t => t.tier_number === offer.current_tier + 1
+    );
+
+    const remainingForNextTier = nextTier
+      ? nextTier.min_participants - (offer.total_quantity || offer.current_participants)
+      : 0;
+
+    if (nextTier) {
+      shareText = `🔥 Hey ! Rejoins-moi vite sur Achat'ons !
+
+Je viens de rejoindre un groupe d'achat pour "${offer.name}" et on est déjà ${offer.current_participants || 0} personnes !
+
+💰 Prix actuel : ${formatPrice(offer.current_price)} au lieu de ${formatPrice(offer.base_price)}
+Tu économises déjà ${formatPrice(savings)} (${savingsPercent}%) !
+
+🚀 Mais attends, ça peut être ENCORE MIEUX !
+
+Si on arrive à ${nextTier.min_participants} unités (il manque juste ${remainingForNextTier} unités), le prix descend à ${formatPrice(nextTier.price)} pour TOUT LE MONDE !
+
+💎 Ça fait ${formatPrice(offer.current_price - nextTier.price)} d'économie supplémentaire !
+
+Plus on est nombreux, moins on paie ! Alors rejoins-nous maintenant 👇`;
+    } else {
+      shareText = `🎉 Incroyable ! Rejoins-moi sur Achat'ons !
+
+On a atteint le meilleur prix pour "${offer.name}" grâce à notre groupe d'achat !
+
+💰 ${formatPrice(offer.current_price)} au lieu de ${formatPrice(offer.base_price)}
+🎯 ${formatPrice(savings)} d'économie (${savingsPercent}%) !
+
+On est déjà ${offer.current_participants || 0} personnes à profiter de ce super prix. Rejoins-nous avant que l'offre se termine !
+
+👇 Clique ici pour en profiter aussi`;
+    }
+  } else {
+    // Message par défaut si on n'a pas l'offre complète
+    shareText = `🔥 Rejoins-moi sur Achat'ons !
+
+J'ai trouvé "${productName}" à ${productPrice} en achat groupé !
+
+Plus on est nombreux, moins on paie ! Rejoins le groupe 👇`;
+  }
 
   const handleWhatsAppShare = () => {
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${fullUrl}`)}`;

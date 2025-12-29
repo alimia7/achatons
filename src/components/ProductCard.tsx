@@ -129,6 +129,15 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
               productName={product.name}
               productPrice={formatPrice(displayPrice)}
               productUrl="/products"
+              offer={hasTieredPricing ? {
+                name: product.name,
+                base_price: product.base_price || product.originalPrice,
+                current_price: product.current_price || displayPrice,
+                current_participants: product.currentParticipants,
+                total_quantity: product.totalQuantity,
+                current_tier: product.current_tier,
+                pricing_tiers: product.pricing_tiers
+              } : undefined}
             />
           </div>
 
