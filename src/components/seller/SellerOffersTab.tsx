@@ -140,6 +140,7 @@ const SellerOffersTab = ({ initialOfferId }: SellerOffersTabProps) => {
                   offer={offer}
                   onViewDetails={() => handleView(offer)}
                   onDelete={() => handleDelete(offer)}
+                  onToggleStatus={() => toggleOfferStatus(offer.id, offer.status)}
                 />
               ))}
             </div>

@@ -128,7 +128,7 @@ const ProductCard = ({ product, onJoinGroup }: ProductCardProps) => {
             <ShareButton
               productName={product.name}
               productPrice={formatPrice(displayPrice)}
-              productUrl="/products"
+              productUrl={`/offer/${product.originalId}`}
               offer={hasTieredPricing ? {
                 name: product.name,
                 base_price: product.base_price || product.originalPrice,

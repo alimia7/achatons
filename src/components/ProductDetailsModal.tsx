@@ -144,7 +144,7 @@ const ProductDetailsModal = ({
             <ShareButton
               productName={product.name}
               productPrice={formatPrice(displayPrice)}
-              productUrl="/products"
+              productUrl={`/offer/${product.originalId}`}
               offer={hasTieredPricing ? {
                 name: product.name,
                 base_price: basePrice,

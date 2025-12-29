@@ -16,6 +16,7 @@ import LegalPages from "./pages/LegalPages";
 import FAQ from "./pages/FAQ";
 import CGU from "./pages/CGU";
 import NotFound from "./pages/NotFound";
+import OfferRedirect from "./pages/OfferRedirect";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/produits" element={<ProductList />} />
+            <Route path="/offer/:id" element={<OfferRedirect />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/seller-dashboard" element={<SellerDashboard />} />

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import ContactModal from "@/components/ContactModal";
+import ProductDetailsModal from "@/components/ProductDetailsModal";
 import ProductFilters from "@/components/ProductFilters";
 import ProductGrid from "@/components/ProductGrid";
 import EmptyState from "@/components/EmptyState";
@@ -67,8 +69,10 @@ interface Category {
 }
 
 const ProductList = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -80,6 +84,20 @@ const ProductList = () => {
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  // Handle offer parameter from URL - open product details modal instead of contact modal
+  useEffect(() => {
+    const offerId = searchParams.get('offer');
+    if (offerId && products.length > 0) {
+      const product = products.find(p => p.originalId === offerId);
+      if (product) {
+        setSelectedProductForDetails(product);
+        // Remove the offer param from URL after opening modal
+        searchParams.delete('offer');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, products, setSearchParams]);
 
   const fetchCategories = async () => {
     try {
@@ -266,6 +284,19 @@ const ProductList = () => {
         onClose={handleCloseModal}
         productId={selectedProduct}
         onSuccess={handleParticipationSuccess}
+      />
+
+      <ProductDetailsModal
+        product={selectedProductForDetails}
+        isOpen={!!selectedProductForDetails}
+        onClose={() => setSelectedProductForDetails(null)}
+        onJoinGroup={() => {
+          if (selectedProductForDetails) {
+            setSelectedProduct(selectedProductForDetails.originalId);
+            setIsContactModalOpen(true);
+            setSelectedProductForDetails(null);
+          }
+        }}
       />
     </div>
   );

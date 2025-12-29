@@ -5,16 +5,17 @@ import { Button } from '../ui/button';
 import { TierProgressBar } from '../tiers/TierProgressBar';
 import { NudgeMessage } from '../tiers/NudgeMessage';
 import { usePriceCalculation } from '../../hooks/usePriceCalculation';
-import { Calendar, DollarSign, Users, TrendingUp, Eye, Trash2 } from 'lucide-react';
+import { Calendar, DollarSign, Users, TrendingUp, Eye, Trash2, Power } from 'lucide-react';
 import type { PricingTier } from '../../types/pricing';
 
 interface OfferAnalyticsCardProps {
   offer: any;
   onViewDetails: () => void;
   onDelete?: () => void;
+  onToggleStatus?: () => void;
 }
 
-export function OfferAnalyticsCard({ offer, onViewDetails, onDelete }: OfferAnalyticsCardProps) {
+export function OfferAnalyticsCard({ offer, onViewDetails, onDelete, onToggleStatus }: OfferAnalyticsCardProps) {
   const hasTieredPricing = offer.pricing_model === 'tiered' && offer.pricing_tiers && offer.pricing_tiers.length > 0;
 
   const { currentTier, currentPrice, nextTier } = usePriceCalculation(
@@ -168,6 +169,24 @@ export function OfferAnalyticsCard({ offer, onViewDetails, onDelete }: OfferAnal
             <Eye className="h-4 w-4 mr-2" />
             Voir les détails
           </Button>
+          {onToggleStatus && (
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStatus();
+              }}
+              variant="outline"
+              size="sm"
+              className={`${
+                offer.status === 'active'
+                  ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-300'
+                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-300'
+              }`}
+              title={offer.status === 'active' ? 'Désactiver l\'offre' : 'Activer l\'offre'}
+            >
+              <Power className="h-4 w-4" />
+            </Button>
+          )}
           {onDelete && (
             <Button
               onClick={(e) => {
