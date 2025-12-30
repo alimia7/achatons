@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { TierProgressBar } from '../tiers/TierProgressBar';
 import { NudgeMessage } from '../tiers/NudgeMessage';
 import { usePriceCalculation } from '../../hooks/usePriceCalculation';
-import { Calendar, DollarSign, Users, TrendingUp, Eye, Trash2, Power } from 'lucide-react';
+import { Calendar, DollarSign, Users, TrendingUp, Eye, Trash2 } from 'lucide-react';
 import type { PricingTier } from '../../types/pricing';
 
 interface OfferAnalyticsCardProps {
@@ -160,46 +160,48 @@ export function OfferAnalyticsCard({ offer, onViewDetails, onDelete, onToggleSta
         )}
 
         {/* Boutons d'action */}
-        <div className="flex gap-2">
+        <div className="space-y-2">
           <Button
             onClick={onViewDetails}
-            className="flex-1 bg-achatons-orange hover:bg-achatons-brown"
+            className="w-full bg-achatons-orange hover:bg-achatons-brown"
             size="sm"
           >
             <Eye className="h-4 w-4 mr-2" />
             Voir les détails
           </Button>
-          {onToggleStatus && (
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleStatus();
-              }}
-              variant="outline"
-              size="sm"
-              className={`${
-                offer.status === 'active'
-                  ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-300'
-                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-300'
-              }`}
-              title={offer.status === 'active' ? 'Désactiver l\'offre' : 'Activer l\'offre'}
-            >
-              <Power className="h-4 w-4" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              variant="destructive"
-              size="sm"
-              className="bg-red-600 hover:bg-red-700"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+
+          <div className="flex gap-2">
+            {onToggleStatus && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleStatus();
+                }}
+                variant="outline"
+                size="sm"
+                className={`flex-1 ${
+                  offer.status === 'active'
+                    ? 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300'
+                    : 'bg-green-50 hover:bg-green-100 text-green-700 border-green-300'
+                }`}
+              >
+                {offer.status === 'active' ? 'Désactiver' : 'Activer'}
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                variant="destructive"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
